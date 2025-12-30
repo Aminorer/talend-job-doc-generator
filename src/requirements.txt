@@ -1,0 +1,6 @@
+streamlit
+lxml
+pyyaml
+markdown2
+fpdf2
+requests

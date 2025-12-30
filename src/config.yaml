@@ -1,0 +1,17 @@
+# Configuration par défaut pour Talend Documentation Generator
+ollama:
+  base_url: "http://localhost:11434"
+  model: "llama3"
+  timeout: 120
+
+generator:
+  default_template: "job_standard.md"
+  output_dir: "docs/output"
+
+diagrams:
+  style: "TD"
+
+pdf:
+  font: "Helvetica"
+  font_size: 12
+  margin: 10
