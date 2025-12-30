@@ -27,17 +27,25 @@ class JobAnalyzer:
         properties_data: Optional[Dict[str, str]] = None,
         context_data: Optional[Dict[str, Dict[str, str]]] = None,
         screenshot_path: Optional[str] = None,
+        diagram_type: str = "mermaid",
+        diagram_orientation: str = "TD",
     ):
         self.item_data = item_data
         self.properties_data = properties_data
         self.context_data = context_data
         self.screenshot_path = screenshot_path
+        self.diagram_type = diagram_type
+        self.diagram_orientation = diagram_orientation
 
     def analyze(self) -> AnalyzedJob:
         dependency_finder = DependencyFinder(self.item_data)
         dependencies = dependency_finder.find_dependencies()
 
-        flow_analyzer = FlowAnalyzer(self.item_data)
+        flow_analyzer = FlowAnalyzer(
+            self.item_data,
+            diagram_type=self.diagram_type,
+            orientation=self.diagram_orientation,
+        )
         flows = flow_analyzer.analyze_flows()
 
         return AnalyzedJob(
