@@ -6,6 +6,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from lxml import etree
+import logging
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -124,14 +128,18 @@ class TalendItemParser:
             schema: List[Dict[str, Any]] = []
             for param in node.findall("elementParameter", namespaces=self.namespaces):
                 name = param.get("name")
-                value = param.get("value")
+                if not name:
+                    continue
+                value = self._convert_parameter_value(param)
                 parameters[name] = value
-                if name == "UNIQUE_NAME":
+                if name == "UNIQUE_NAME" and isinstance(value, str):
                     unique_name = value or unique_name
 
-            metadata = node.find("metadata", namespaces=self.namespaces)
-            if metadata is not None:
-                schema = self._parse_schema(metadata)
+            for metadata in node.findall("metadata", namespaces=self.namespaces):
+                schema.extend(self._parse_schema(metadata))
+
+            if node.get("componentName", "").lower() == "tmap":
+                parameters["tmap_details"] = self._parse_tmap_details(node)
 
             components.append(
                 TalendComponent(
@@ -200,17 +208,88 @@ class TalendItemParser:
 
     def _parse_schema(self, metadata_node: etree._Element) -> List[Dict[str, Any]]:
         schema: List[Dict[str, Any]] = []
+        connector = metadata_node.get("connector") or metadata_node.get("name") or "FLOW"
         for column in metadata_node.findall("column", namespaces=self.namespaces):
             schema.append(
                 {
+                    "connector": connector,
                     "name": column.get("name"),
                     "type": column.get("type"),
                     "length": column.get("length"),
                     "precision": column.get("precision"),
                     "nullable": column.get("nullable"),
+                    "comment": column.get("comment"),
                 }
             )
         return schema
+
+    def _convert_parameter_value(self, param: etree._Element) -> Any:
+        field_type = (param.get("field") or "").upper()
+        if field_type == "TABLE":
+            rows: List[Dict[str, Any]] = []
+            for row in param.findall(".//row", namespaces=self.namespaces):
+                rows.append({k: v for k, v in row.attrib.items()})
+            for el in param.findall(".//elementValue", namespaces=self.namespaces):
+                rows.append({"ref": el.get("elementRef"), "value": el.get("value")})
+            return rows
+        if field_type in {"MEMO_SQL", "MEMO"}:
+            text_value = (param.text or "").strip()
+            if not text_value:
+                text_value = param.get("value", "")
+            lines = [text_value] if text_value else []
+            for child in param:
+                if child.text:
+                    lines.append(child.text.strip())
+            return "\n".join([line for line in lines if line])
+        return param.get("value")
+
+    def _parse_tmap_details(self, node: etree._Element) -> Dict[str, Any]:
+        details: Dict[str, Any] = {
+            "input_tables": [],
+            "output_tables": [],
+            "mappings": [],
+            "filters": [],
+            "lookups": [],
+            "rejects": [],
+        }
+        try:
+            for table in node.findall('.//inputTables//table', namespaces=self.namespaces):
+                name = table.get("name")
+                if name:
+                    details["input_tables"].append(name)
+                lookup_mode = table.get("lookupMode") or table.get("lookupType")
+                if lookup_mode:
+                    details["lookups"].append({"table": name, "mode": lookup_mode})
+                for entry in table.findall(".//mapperTableEntry", namespaces=self.namespaces):
+                    details["mappings"].append(
+                        {
+                            "input": f"{name}.{entry.get('name', '')}",
+                            "output": entry.get("output") or entry.get("name"),
+                            "expression": entry.get("expression"),
+                        }
+                    )
+
+            for table in node.findall('.//outputTables//table', namespaces=self.namespaces):
+                out_name = table.get("name")
+                if out_name:
+                    details["output_tables"].append(out_name)
+                if table.get("isReject") == "true":
+                    details["rejects"].append(out_name)
+                for entry in table.findall(".//mapperTableEntry", namespaces=self.namespaces):
+                    details["mappings"].append(
+                        {
+                            "input": entry.get("lookup") or entry.get("input") or "",
+                            "output": f"{out_name}.{entry.get('name', '')}",
+                            "expression": entry.get("expression"),
+                        }
+                    )
+                for filter_condition in table.findall(".//filterCondition", namespaces=self.namespaces):
+                    expression = filter_condition.get("expression") or (filter_condition.text or "").strip()
+                    if expression:
+                        details["filters"].append(expression)
+        except Exception as exc:  # pragma: no cover - robust fallback
+            LOGGER.warning("Échec du parsing détaillé tMap: %s", exc)
+        return details
 
     def _infer_category(self, component_name: str) -> str:
         name_lower = component_name.lower()

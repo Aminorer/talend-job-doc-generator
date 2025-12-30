@@ -119,7 +119,17 @@ def main():
             # PDF optionnel
             if export_pdf:
                 pdf_exporter = PDFExporter(str(output_dir))
-                pdf_path = pdf_exporter.export(markdown_content, md_path.name)
+                pdf_path = pdf_exporter.export(
+                    markdown_content,
+                    md_path.name,
+                    metadata={
+                        "name": analyzer.job_name,
+                        "version": item_data.get("version"),
+                        "author": item_data.get("author"),
+                    },
+                    screenshot_path=files.get("screenshot"),
+                    stats=item_data.get("stats"),
+                )
                 st.download_button("Télécharger PDF", data=pdf_path.read_bytes(), file_name=pdf_path.name)
 
             with st.expander("Données brutes (.json)"):

@@ -7,10 +7,19 @@ from generator.diagram_generator import DiagramGenerator
 
 
 class FlowAnalyzer:
-    def __init__(self, item_data: Dict[str, Any], diagram_type: str = "mermaid", orientation: str = "TD"):
+    def __init__(
+        self,
+        item_data: Dict[str, Any],
+        diagram_type: str = "mermaid",
+        orientation: str = "TD",
+        output_dir: str = "docs/output",
+        graphviz_format: str = "png",
+    ):
         self.item_data = item_data
         self.diagram_type = diagram_type
         self.orientation = orientation
+        self.output_dir = output_dir
+        self.graphviz_format = graphviz_format
 
     def analyze_flows(self) -> Dict[str, Any]:
         flows: List[Dict[str, str]] = []
@@ -26,8 +35,15 @@ class FlowAnalyzer:
         flow_data = {
             "flows": flows,
             "components": self.item_data.get("components", []),
+            "subjobs": self.item_data.get("subjobs", []),
+            "job_name": self.item_data.get("name"),
         }
-        diagrams = DiagramGenerator(flow_data, orientation=self.orientation).generate(self.diagram_type)
+        diagrams = DiagramGenerator(
+            flow_data,
+            orientation=self.orientation,
+            output_dir=self.output_dir,
+            graphviz_format=self.graphviz_format,
+        ).generate(self.diagram_type)
         flow_data.update(diagrams)
         return flow_data
 
