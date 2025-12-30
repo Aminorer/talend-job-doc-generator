@@ -29,6 +29,8 @@ class JobAnalyzer:
         screenshot_path: Optional[str] = None,
         diagram_type: str = "mermaid",
         diagram_orientation: str = "TD",
+        diagram_output_dir: str = "docs/output",
+        graphviz_format: str = "png",
     ):
         self.item_data = item_data
         self.properties_data = properties_data
@@ -36,6 +38,8 @@ class JobAnalyzer:
         self.screenshot_path = screenshot_path
         self.diagram_type = diagram_type
         self.diagram_orientation = diagram_orientation
+        self.diagram_output_dir = diagram_output_dir
+        self.graphviz_format = graphviz_format
 
     def analyze(self) -> AnalyzedJob:
         dependency_finder = DependencyFinder(self.item_data)
@@ -45,6 +49,8 @@ class JobAnalyzer:
             self.item_data,
             diagram_type=self.diagram_type,
             orientation=self.diagram_orientation,
+            output_dir=self.diagram_output_dir,
+            graphviz_format=self.graphviz_format,
         )
         flows = flow_analyzer.analyze_flows()
 

@@ -8,20 +8,44 @@ from analyzer.job_analyzer import AnalyzedJob
 
 
 class MarkdownGenerator:
+    """Construit un Markdown riche à partir d'un job analysé."""
+
     def __init__(self, templates_dir: str):
         self.templates_dir = Path(templates_dir)
 
     def generate(self, job: AnalyzedJob, llm_description: str, template_name: str) -> str:
+        """Génère le Markdown final en injectant toutes les sections enrichies."""
         template_path = self.templates_dir / template_name
         if not template_path.exists():
             raise FileNotFoundError(f"Template introuvable: {template_path}")
         template = template_path.read_text(encoding="utf-8")
+
         contexts = self._format_contexts(job.raw_item.get("contexts", {}), job.contexts)
+        contexts_table = self._format_context_table(job.raw_item.get("contexts", {}))
         components_table = self._format_components(job.raw_item.get("components", []))
-        connections_list = self._format_connections(job.raw_item.get("connections", []))
         components_detailed = self._format_components(job.raw_item.get("components", []), detailed=True)
+        connections_list = self._format_connections(job.raw_item.get("connections", []))
         notes_section = self._format_notes(job.raw_item.get("notes", []))
         stats_section = self._format_stats(job.raw_item.get("stats", {}))
+        tmap_section = self._format_tmap(job.raw_item.get("components", []))
+        dependencies_section = self._format_dependencies(job.dependencies)
+        db_connections = self._format_db_connections(job.dependencies.get("db_connections", []))
+        toc = self._build_toc(
+            [
+                "Description générée",
+                "Métadonnées",
+                "Contextes",
+                "Variables de contexte",
+                "Composants",
+                "Connexions",
+                "Détails des composants",
+                "tMap",
+                "Dépendances",
+                "Connexions DB",
+                "Notes",
+                "Statistiques",
+            ]
+        )
 
         mermaid_diagram = job.flows.get("mermaid", "") or "Diagramme Mermaid indisponible"
         graphviz_diagram = job.flows.get("graphviz", "")
@@ -37,14 +61,25 @@ class MarkdownGenerator:
             created_at=job.raw_item.get("created_at", ""),
             modified_at=job.raw_item.get("modified_at", ""),
             contexts=contexts,
+            contexts_table=contexts_table,
             components_table=components_table,
             components_detailed=components_detailed,
             connections_list=connections_list,
             notes_section=notes_section,
             stats_section=stats_section,
+            tmap_section=tmap_section,
+            dependencies_section=dependencies_section,
+            db_connections=db_connections,
+            toc=toc,
             mermaid_diagram=mermaid_diagram,
             graphviz_diagram=graphviz_diagram or "Diagramme Graphviz non généré",
         )
+
+    def _build_toc(self, titles: List[str]) -> str:
+        return "\n".join(f"- [{title}](#{self._anchor(title)})" for title in titles)
+
+    def _anchor(self, title: str) -> str:
+        return title.lower().replace(" ", "-")
 
     def _format_contexts(self, contexts: Dict[str, Dict[str, Any]], parsed_contexts: Any) -> str:
         lines: List[str] = []
@@ -63,18 +98,38 @@ class MarkdownGenerator:
             lines.append("")
         return "\n".join(lines).strip() or "Aucun contexte détecté"
 
+    def _format_context_table(self, contexts: Dict[str, Dict[str, Any]]) -> str:
+        if not contexts:
+            return "Aucune variable de contexte"
+        rows = ["| Contexte | Nom | Type | Valeur | Commentaire |", "|---|---|---|---|---|"]
+        for ctx_name, params in contexts.items():
+            for name, info in params.items():
+                rows.append(
+                    f"| {ctx_name} | {name} | {info.get('type')} | {info.get('value')} | {info.get('comment', '')} |"
+                )
+        return "\n".join(rows)
+
     def _format_components(self, components: List[Dict[str, Any]], detailed: bool = False) -> str:
         if not components:
             return "Aucun composant détecté"
-        header = "| Unique Name | Composant | Version |" if not detailed else "| Unique Name | Composant | Version | Paramètres clés |"
-        separator = "|---|---|---|" if not detailed else "|---|---|---|---|"
+        header = (
+            "| Unique Name | Composant | Version | Catégorie |"
+            if not detailed
+            else "| Unique Name | Composant | Version | Paramètres clés | Schémas |"
+        )
+        separator = "|---|---|---|---|" if not detailed else "|---|---|---|---|---|"
         rows = [header, separator]
         for comp in components:
             params = comp.get("parameters", {})
+            schema_desc = ", ".join(f"{col.get('name')}:{col.get('type')}" for col in comp.get("schema", [])[:3])
             top_params = ", ".join(f"{k}={v}" for k, v in list(params.items())[:3]) if detailed else ""
-            row = f"| {comp.get('unique_name')} | {comp.get('name')} | {comp.get('version', '')} |"
+            row = (
+                f"| {comp.get('unique_name')} | {comp.get('name')} | {comp.get('version', '')} | {comp.get('category', '')} |"
+            )
             if detailed:
-                row += f" {top_params} |"
+                row = (
+                    f"| {comp.get('unique_name')} | {comp.get('name')} | {comp.get('version', '')} | {top_params} | {schema_desc} |"
+                )
             rows.append(row)
         return "\n".join(rows)
 
@@ -99,6 +154,53 @@ class MarkdownGenerator:
         for key, value in stats.items():
             lines.append(f"- {key}: {value}")
         return "\n".join(lines)
+
+    def _format_tmap(self, components: List[Dict[str, Any]]) -> str:
+        tmap_comps = [c for c in components if c.get("parameters", {}).get("tmap_details")]
+        if not tmap_comps:
+            return "Aucun tMap détecté"
+        lines: List[str] = []
+        for comp in tmap_comps:
+            details = comp["parameters"]["tmap_details"]
+            lines.append(f"### {comp.get('unique_name')}")
+            lines.append(f"- Tables d'entrée : {', '.join(details.get('input_tables', []))}")
+            lines.append(f"- Tables de sortie : {', '.join(details.get('output_tables', []))}")
+            if details.get("filters"):
+                lines.append("#### Filtres")
+                lines.extend(f"- {flt}" for flt in details["filters"])
+            if details.get("mappings"):
+                lines.append("#### Mappings")
+                lines.append("| Entrée | Sortie | Expression |")
+                lines.append("|---|---|---|")
+                for mapping in details["mappings"]:
+                    lines.append(
+                        f"| {mapping.get('input','')} | {mapping.get('output','')} | `{mapping.get('expression','')}` |"
+                    )
+            lines.append("")
+        return "\n".join(lines)
+
+    def _format_dependencies(self, dependencies: Dict[str, Any]) -> str:
+        lines: List[str] = []
+        routines = dependencies.get("routines") or []
+        joblets = dependencies.get("joblets") or []
+        connectors = dependencies.get("connectors") or []
+        if routines:
+            lines.append("**Routines détectées :** " + ", ".join(sorted(set(routines))))
+        if joblets:
+            lines.append("**Joblets :** " + ", ".join(j.get("unique_name") or j.get("name") for j in joblets))
+        if connectors:
+            lines.append("**Connecteurs :** " + ", ".join(sorted(set(connectors))))
+        return "\n".join(lines) or "Aucune dépendance détectée"
+
+    def _format_db_connections(self, db_connections: List[Dict[str, Any]]) -> str:
+        if not db_connections:
+            return "Aucune connexion DB détectée"
+        rows = ["| Composant | Type | Host | Port | Database | Schéma | Utilisateur |", "|---|---|---|---|---|---|---|"]
+        for conn in db_connections:
+            rows.append(
+                f"| {conn.get('component')} | {conn.get('type')} | {conn.get('host')} | {conn.get('port')} | {conn.get('database')} | {conn.get('schema')} | {conn.get('user')} |"
+            )
+        return "\n".join(rows)
 
 
 __all__ = ["MarkdownGenerator"]

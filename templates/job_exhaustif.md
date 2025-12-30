@@ -1,5 +1,8 @@
 # Documentation exhaustive - {job_name}
 
+## Table des matières
+{toc}
+
 ## Description générée
 {llm_description}
 
@@ -9,12 +12,25 @@
 - Auteur : {author}
 - Créé le : {created_at}
 - Modifié le : {modified_at}
+- Contexte par défaut : {default_context}
 
 ## Contextes détaillés
 {contexts}
 
+## Variables de contexte
+{contexts_table}
+
 ## Composants détaillés
 {components_detailed}
+
+## tMap
+{tmap_section}
+
+## Dépendances
+{dependencies_section}
+
+## Connexions DB
+{db_connections}
 
 ## Connexions
 {connections_list}

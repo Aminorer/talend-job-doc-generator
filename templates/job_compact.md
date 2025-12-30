@@ -1,17 +1,30 @@
-# Documentation - {job_name}
+# Documentation courte - {job_name}
+
+## Table des matières
+{toc}
 
 ## Vue d'ensemble
 {overview}
+
+## Métadonnées
+- Version : {version}
+- Type : {job_type}
+- Auteur : {author}
+- Contexte par défaut : {default_context}
+
+## Composants
+{components_table}
+
+## Connexions
+{connections_list}
 
 ## Diagramme du flux
 ```mermaid
 {mermaid_diagram}
 ```
 
-## Diagramme Graphviz
-```dot
-{graphviz_diagram}
-```
+## Notes
+{notes_section}
 
-## Composants
-{components_table}
+## Statistiques
+{stats_section}

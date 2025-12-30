@@ -104,7 +104,12 @@ def generate_documentation(
 
     if export_pdf:
         pdf_exporter = PDFExporter(str(md_path.parent))
-        pdf_path = pdf_exporter.export(markdown_content, md_path.name)
+        metadata = {
+            "name": analyzer.job_name,
+            "version": item_data.get("version"),
+            "author": item_data.get("author"),
+        }
+        pdf_path = pdf_exporter.export(markdown_content, md_path.name, metadata=metadata, stats=item_data.get("stats"))
         result_paths["pdf"] = pdf_path
 
     # Sauvegarder les données JSON pour debugging
