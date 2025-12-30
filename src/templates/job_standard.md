@@ -22,3 +22,8 @@
 ```mermaid
 {mermaid_diagram}
 ```
+
+## Diagramme Graphviz
+```dot
+{graphviz_diagram}
+```

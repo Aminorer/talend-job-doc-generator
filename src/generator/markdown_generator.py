@@ -23,6 +23,9 @@ class MarkdownGenerator:
         notes_section = self._format_notes(job.raw_item.get("notes", []))
         stats_section = self._format_stats(job.raw_item.get("stats", {}))
 
+        mermaid_diagram = job.flows.get("mermaid", "") or "Diagramme Mermaid indisponible"
+        graphviz_diagram = job.flows.get("graphviz", "")
+
         return template.format(
             job_name=job.raw_item.get("name", "Job Talend"),
             overview=llm_description,
@@ -39,7 +42,8 @@ class MarkdownGenerator:
             connections_list=connections_list,
             notes_section=notes_section,
             stats_section=stats_section,
-            mermaid_diagram=job.flows.get("mermaid", ""),
+            mermaid_diagram=mermaid_diagram,
+            graphviz_diagram=graphviz_diagram or "Diagramme Graphviz non généré",
         )
 
     def _format_contexts(self, contexts: Dict[str, Dict[str, Any]], parsed_contexts: Any) -> str:

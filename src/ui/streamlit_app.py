@@ -7,7 +7,6 @@ from pathlib import Path
 import streamlit as st
 
 from analyzer.job_analyzer import JobAnalyzer
-from generator.diagram_generator import DiagramGenerator
 from generator.markdown_generator import MarkdownGenerator
 from generator.pdf_exporter import PDFExporter
 from llm.llama_client import LlamaClient
@@ -33,15 +32,18 @@ def main():
     st.write("Générez automatiquement une documentation complète pour vos jobs Talend (.item).")
 
     config = load_config()
+    template_map = {
+        "compact": "job_compact.md",
+        "standard": "job_standard.md",
+        "exhaustif": "job_exhaustif.md",
+    }
 
     with st.sidebar:
         st.header("Paramètres")
-        template = st.selectbox(
-            "Template",
-            options=[p.name for p in TEMPLATES_DIR.glob("*.md")],
-            index=0,
-        )
+        detail_level = st.selectbox("Niveau de détail", options=["compact", "standard", "exhaustif"], index=1)
+        diagram_type = st.selectbox("Type de diagramme", options=["mermaid", "graphviz", "both"], index=0)
         export_pdf = st.checkbox("Exporter en PDF", value=False)
+        use_llm = st.checkbox("Activer la génération LLM", value=True)
         item_path_input = st.text_input("Chemin vers le fichier .item", value="")
         launch = st.button("Générer la documentation")
 
@@ -69,26 +71,33 @@ def main():
             if files.get("context"):
                 context_data = ContextParser(str(files["context"])).parse()
 
-            analyzer = JobAnalyzer(item_data, properties_data, context_data, screenshot_path=files.get("screenshot"))
+            orientation = config.get("diagrams", {}).get("style", "TD")
+            analyzer = JobAnalyzer(
+                item_data,
+                properties_data,
+                context_data,
+                screenshot_path=files.get("screenshot"),
+                diagram_type=diagram_type,
+                diagram_orientation=orientation,
+            )
             analyzed_job = analyzer.analyze()
 
-            # Diagramme
-            diagram_gen = DiagramGenerator(analyzed_job.flows)
-            analyzed_job.flows["mermaid"] = diagram_gen.generate_mermaid()
-
             # LLM
-            llm_cfg = config.get("ollama", {})
-            client = LlamaClient(
-                llm_cfg.get("base_url", "http://localhost:11434"),
-                llm_cfg.get("model", "llama3"),
-                llm_cfg.get("timeout", 120),
-            )
-            prompt = build_job_prompt(item_data)
-            llm_description = client.generate(prompt)
+            llm_description = "Génération désactivée."
+            if use_llm:
+                llm_cfg = config.get("ollama", {})
+                client = LlamaClient(
+                    llm_cfg.get("base_url", "http://localhost:11434"),
+                    llm_cfg.get("model", "llama3"),
+                    llm_cfg.get("timeout", 120),
+                )
+                prompt = build_job_prompt(item_data, detail_level=detail_level)
+                llm_description = client.generate(prompt)
 
             # Markdown
             md_generator = MarkdownGenerator(str(TEMPLATES_DIR))
-            markdown_content = md_generator.generate(analyzed_job, llm_description, template)
+            template_name = template_map.get(detail_level, "job_standard.md")
+            markdown_content = md_generator.generate(analyzed_job, llm_description, template_name)
 
             output_dir = Path(config.get("generator", {}).get("output_dir", "docs/output"))
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -102,6 +111,9 @@ def main():
 
             st.markdown("### Diagramme Mermaid")
             st.code(analyzed_job.flows.get("mermaid", ""), language="mermaid")
+            if diagram_type in ("graphviz", "both"):
+                st.markdown("### Diagramme Graphviz")
+                st.code(analyzed_job.flows.get("graphviz", ""), language="dot")
 
             # PDF optionnel
             if export_pdf:

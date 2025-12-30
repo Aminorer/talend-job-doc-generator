@@ -7,6 +7,10 @@ from typing import Optional
 import markdown2
 from fpdf import FPDF, HTMLMixin
 
+try:
+    from weasyprint import HTML  # type: ignore
+except Exception:  # pragma: no cover
+    HTML = None
 
 template_css = """
 <style>
@@ -29,12 +33,20 @@ class PDFExporter:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def export(self, markdown_content: str, filename: str) -> Path:
+        """Convertit le Markdown en PDF.
+
+        Utilise WeasyPrint si disponible (comme décrit dans le README), sinon
+        effectue un fallback vers FPDF pour garantir la génération.
+        """
         html_content = template_css + markdown2.markdown(markdown_content)
-        pdf = PDF()
-        pdf.add_page()
-        pdf.write_html(html_content)
         output_path = self.output_dir / f"{Path(filename).stem}.pdf"
-        pdf.output(str(output_path))
+        if HTML:
+            HTML(string=html_content).write_pdf(str(output_path))
+        else:
+            pdf = PDF()
+            pdf.add_page()
+            pdf.write_html(html_content)
+            pdf.output(str(output_path))
         return output_path
 
 

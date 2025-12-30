@@ -8,5 +8,10 @@
 {mermaid_diagram}
 ```
 
+## Diagramme Graphviz
+```dot
+{graphviz_diagram}
+```
+
 ## Composants
 {components_table}

@@ -7,8 +7,10 @@ from generator.diagram_generator import DiagramGenerator
 
 
 class FlowAnalyzer:
-    def __init__(self, item_data: Dict[str, Any]):
+    def __init__(self, item_data: Dict[str, Any], diagram_type: str = "mermaid", orientation: str = "TD"):
         self.item_data = item_data
+        self.diagram_type = diagram_type
+        self.orientation = orientation
 
     def analyze_flows(self) -> Dict[str, Any]:
         flows: List[Dict[str, str]] = []
@@ -25,8 +27,8 @@ class FlowAnalyzer:
             "flows": flows,
             "components": self.item_data.get("components", []),
         }
-        diagram = DiagramGenerator(flow_data).generate_mermaid()
-        flow_data["mermaid"] = diagram
+        diagrams = DiagramGenerator(flow_data, orientation=self.orientation).generate(self.diagram_type)
+        flow_data.update(diagrams)
         return flow_data
 
 
