@@ -17,8 +17,9 @@ from parser.properties_parser import PropertiesParser
 from utils.file_finder import FileFinder
 import yaml
 
-CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
-TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+CONFIG_PATH = PROJECT_ROOT / "config.yaml"
+TEMPLATES_DIR = PROJECT_ROOT / "templates"
 
 
 def load_config():
