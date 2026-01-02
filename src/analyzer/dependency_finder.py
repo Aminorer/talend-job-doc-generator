@@ -18,6 +18,10 @@ class DependencyFinder:
 
     def find_dependencies(self) -> Dict[str, Any]:
         """Retourne les routines, joblets, subjobs et connexions DB détectées."""
+        LOGGER.debug(
+            "Analyse des dépendances démarrée",
+            extra={"job_name": self.item_data.get("name"), "nb_components": len(self.item_data.get("components", []))},
+        )
         components = self.item_data.get("components", [])
         dependencies: Dict[str, Any] = {
             "routines": self._find_routines(components),
@@ -26,6 +30,15 @@ class DependencyFinder:
             "db_connections": self._find_db_connections(components),
             "connectors": [conn.get("connector_name") for conn in self.item_data.get("connections", []) if conn.get("connector_name")],
         }
+        LOGGER.info(
+            "Dépendances trouvées",
+            extra={
+                "job_name": self.item_data.get("name"),
+                "routines": len(dependencies["routines"]),
+                "joblets": len(dependencies["joblets"]),
+                "db_connections": len(dependencies["db_connections"]),
+            },
+        )
         return dependencies
 
     def _find_routines(self, components: List[Dict[str, Any]]) -> List[str]:

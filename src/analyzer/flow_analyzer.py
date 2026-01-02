@@ -1,9 +1,12 @@
 """Analyse des flux de données basés sur les connexions."""
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List
 
 from generator.diagram_generator import DiagramGenerator
+
+LOGGER = logging.getLogger(__name__)
 
 
 class FlowAnalyzer:
@@ -22,6 +25,10 @@ class FlowAnalyzer:
         self.graphviz_format = graphviz_format
 
     def analyze_flows(self) -> Dict[str, Any]:
+        LOGGER.info(
+            "Analyse des flux",
+            extra={"job_name": self.item_data.get("name"), "connections": len(self.item_data.get("connections", []))},
+        )
         flows: List[Dict[str, str]] = []
         for connection in self.item_data.get("connections", []):
             flows.append(
