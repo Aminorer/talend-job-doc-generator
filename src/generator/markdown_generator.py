@@ -162,9 +162,17 @@ class MarkdownGenerator:
         lines: List[str] = []
         for comp in tmap_comps:
             details = comp["parameters"]["tmap_details"]
+            if hasattr(details, "to_dict"):
+                details = details.to_dict()
             lines.append(f"### {comp.get('unique_name')}")
-            lines.append(f"- Tables d'entrée : {', '.join(details.get('input_tables', []))}")
-            lines.append(f"- Tables de sortie : {', '.join(details.get('output_tables', []))}")
+            input_names = details.get("input_table_names") or [
+                t.get("name", "") for t in details.get("input_tables", [])
+            ]
+            output_names = details.get("output_table_names") or [
+                t.get("name", "") for t in details.get("output_tables", [])
+            ]
+            lines.append(f"- Tables d'entrée : {', '.join(filter(None, input_names))}")
+            lines.append(f"- Tables de sortie : {', '.join(filter(None, output_names))}")
             if details.get("filters"):
                 lines.append("#### Filtres")
                 lines.extend(f"- {flt}" for flt in details["filters"])
@@ -173,9 +181,17 @@ class MarkdownGenerator:
                 lines.append("| Entrée | Sortie | Expression |")
                 lines.append("|---|---|---|")
                 for mapping in details["mappings"]:
-                    lines.append(
-                        f"| {mapping.get('input','')} | {mapping.get('output','')} | `{mapping.get('expression','')}` |"
-                    )
+                    source = mapping.get("source_table") or ""
+                    if mapping.get("source_column"):
+                        source = f"{source}.{mapping['source_column']}" if source else mapping["source_column"]
+                    target = mapping.get("target_table") or ""
+                    if mapping.get("target_column"):
+                        target = (
+                            f"{target}.{mapping['target_column']}"
+                            if target and mapping["target_column"]
+                            else mapping.get("target_column", target)
+                        )
+                    lines.append(f"| {source} | {target} | `{mapping.get('expression','')}` |")
             lines.append("")
         return "\n".join(lines)
 

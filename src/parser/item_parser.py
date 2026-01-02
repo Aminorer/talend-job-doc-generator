@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from lxml import etree
 import logging
 
+from parser.tmap_parser import TMapParser, TMapParsingError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -148,7 +149,12 @@ class TalendItemParser:
                 schema.extend(self._parse_schema(metadata))
 
             if node.get("componentName", "").lower() == "tmap":
-                parameters["tmap_details"] = self._parse_tmap_details(node)
+                try:
+                    parameters["tmap_details"] = TMapParser(
+                        node, namespaces=self.namespaces, logger=LOGGER
+                    ).parse().to_dict()
+                except TMapParsingError:
+                    parameters["tmap_details"] = {}
 
             components.append(
                 TalendComponent(
@@ -251,96 +257,6 @@ class TalendItemParser:
                     lines.append(child.text.strip())
             return "\n".join([line for line in lines if line])
         return param.get("value")
-
-    def _parse_tmap_details(self, node: etree._Element) -> Dict[str, Any]:
-        """Analyse fine d'un tMap (tables, variables, joins et rejets)."""
-        details: Dict[str, Any] = {
-            "input_tables": [],
-            "output_tables": [],
-            "variables": [],
-            "mappings": [],
-            "filters": [],
-            "lookups": [],
-            "rejects": [],
-            "joins": [],
-        }
-        try:
-            for table in node.findall(".//inputTables//table", namespaces=self.namespaces):
-                name = table.get("name")
-                join_model = table.get("joinModel") or table.get("joinType")
-                inner_join = table.get("innerJoin") == "true"
-                lookup_mode = table.get("lookupMode") or table.get("lookupType")
-                join_conditions = []
-                for join in table.findall(".//join", namespaces=self.namespaces):
-                    expression = join.get("expression") or (join.text or "").strip()
-                    if expression:
-                        join_conditions.append(expression)
-                        details["joins"].append(
-                            {
-                                "table": name,
-                                "type": join.get("joinType") or join_model,
-                                "expression": expression,
-                            }
-                        )
-
-                table_info = {
-                    "name": name,
-                    "lookup_mode": lookup_mode,
-                    "join_model": join_model,
-                    "inner_join": inner_join,
-                    "joins": join_conditions,
-                }
-                details["input_tables"].append(table_info)
-                if lookup_mode:
-                    details["lookups"].append({"table": name, "mode": lookup_mode})
-                for entry in table.findall(".//mapperTableEntry", namespaces=self.namespaces):
-                    details["mappings"].append(
-                        {
-                            "input": f"{name}.{entry.get('name', '')}",
-                            "output": entry.get("output") or entry.get("name"),
-                            "expression": entry.get("expression"),
-                        }
-                    )
-
-            for var_table in node.findall(".//varTables//varTable", namespaces=self.namespaces):
-                for entry in var_table.findall(".//mapperTableEntry", namespaces=self.namespaces):
-                    details["variables"].append(
-                        {
-                            "name": entry.get("name"),
-                            "expression": entry.get("expression"),
-                            "nullable": entry.get("nullable"),
-                            "type": entry.get("type"),
-                        }
-                    )
-
-            for table in node.findall(".//outputTables//table", namespaces=self.namespaces):
-                out_name = table.get("name")
-                reject_inner_join = table.get("rejectInnerJoin") == "true"
-                table_info = {
-                    "name": out_name,
-                    "is_reject": table.get("isReject") == "true",
-                    "reject_inner_join": reject_inner_join,
-                }
-                details["output_tables"].append(table_info)
-                if table_info["is_reject"]:
-                    details["rejects"].append(out_name)
-                if reject_inner_join and out_name not in details["rejects"]:
-                    details["rejects"].append(out_name)
-                for entry in table.findall(".//mapperTableEntry", namespaces=self.namespaces):
-                    details["mappings"].append(
-                        {
-                            "input": entry.get("lookup") or entry.get("input") or "",
-                            "output": f"{out_name}.{entry.get('name', '')}",
-                            "expression": entry.get("expression"),
-                        }
-                    )
-                for filter_condition in table.findall(".//filterCondition", namespaces=self.namespaces):
-                    expression = filter_condition.get("expression") or (filter_condition.text or "").strip()
-                    if expression:
-                        details["filters"].append(expression)
-        except Exception as exc:  # pragma: no cover - robust fallback
-            LOGGER.warning("Échec du parsing détaillé tMap: %s", exc)
-        return details
 
     def _infer_category(self, component_name: str) -> str:
         name_lower = component_name.lower()

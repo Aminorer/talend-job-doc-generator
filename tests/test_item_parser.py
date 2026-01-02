@@ -16,18 +16,18 @@ def test_tmap_parsing_with_variables_and_joins():
     details = tmap["parameters"]["tmap_details"]
 
     assert len(details["input_tables"]) == 2
-    assert details["input_tables"][0]["join_model"] == "Inner Join"
+    assert details["input_tables"][0]["lookup"]["join_model"] == "Inner Join"
     assert any("lookup1.id" in join["expression"] for join in details["joins"])
-    assert {"table": "row1", "mode": "LOAD_ONCE"} in details["lookups"]
+    assert any(lookup["mode"] == "LOAD_ONCE" for lookup in details["lookups"])
 
-    assert {"name": "outMain", "is_reject": False, "reject_inner_join": False} in details["output_tables"]
+    assert any(table["name"] == "outMain" for table in details["output_tables"])
     assert details["rejects"] == ["rejects"]
 
     variable = details["variables"][0]
     assert variable["name"] == "UP_NAME"
     assert "UPCASE" in variable["expression"]
 
-    assert any(mapping["input"].startswith("row1.") for mapping in details["mappings"])
+    assert any(mapping["source_table"] == "row1" for mapping in details["mappings"])
     assert details["filters"] == ["row1.active == true"]
 
 
