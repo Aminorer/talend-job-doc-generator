@@ -1,8 +1,10 @@
+import time
 from pathlib import Path
 
 import pytest
 
 from parser.item_parser import TalendItemParser
+from utils.cache_manager import CacheManager
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -49,3 +51,56 @@ def test_invalid_extension_raises(tmp_path):
     bad_file.write_text("invalid", encoding="utf-8")
     with pytest.raises(ValueError):
         TalendItemParser(str(bad_file))
+
+
+def test_cache_hit_and_miss(tmp_path):
+    cache_manager = CacheManager(cache_dir=tmp_path, ttl_seconds=3600)
+    item_file = FIXTURES / "sample_job.item"
+
+    parser = TalendItemParser(str(item_file), cache_manager=cache_manager)
+    parser.parse()
+
+    metrics_after_first = cache_manager.get_metrics()
+    assert metrics_after_first["misses"] == 1
+    assert metrics_after_first["hits"] == 0
+
+    parser.parse()
+    metrics_after_second = cache_manager.get_metrics()
+    assert metrics_after_second["hits"] == 1
+    assert metrics_after_second["misses"] == 1
+    assert metrics_after_second["time_saved_ms"] >= 0
+
+
+def test_cache_invalidation_on_file_change(tmp_path):
+    cache_manager = CacheManager(cache_dir=tmp_path, ttl_seconds=3600)
+    tmp_item = tmp_path / "copy.item"
+    tmp_item.write_text((FIXTURES / "sample_job.item").read_text(encoding="utf-8"), encoding="utf-8")
+
+    parser = TalendItemParser(str(tmp_item), cache_manager=cache_manager)
+    parser.parse()
+
+    # modification du fichier -> nouveau hash -> miss attendu
+    tmp_item.write_text(tmp_item.read_text(encoding="utf-8") + "\n<!-- change -->", encoding="utf-8")
+    parser = TalendItemParser(str(tmp_item), cache_manager=cache_manager)
+    parser.parse()
+
+    metrics = cache_manager.get_metrics()
+    assert metrics["misses"] == 2  # deux parse avec fichiers différents (hash modifié)
+
+
+def test_cache_ttl_expiration(tmp_path, monkeypatch):
+    cache_manager = CacheManager(cache_dir=tmp_path, ttl_seconds=1)
+    item_file = FIXTURES / "sample_job.item"
+    parser = TalendItemParser(str(item_file), cache_manager=cache_manager)
+    parser.parse()
+
+    key = cache_manager.compute_md5(item_file)
+    # Simule une entrée ancienne pour forcer l'expiration
+    old_timestamp = time.time() - 5
+    cache_manager._disk_cache[key].timestamp = old_timestamp  # type: ignore[attr-defined]
+    cache_manager._memory_cache[key].timestamp = old_timestamp  # type: ignore[attr-defined]
+
+    # L'appel devrait purger et provoquer un miss
+    parser.parse()
+    metrics = cache_manager.get_metrics()
+    assert metrics["misses"] >= 2
