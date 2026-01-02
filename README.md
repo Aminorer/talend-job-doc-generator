@@ -2339,3 +2339,157 @@ python src/main.py path/to/job.item --detail standard --output doc.md
 - **Encodage** : Toujours UTF-8
 - **Sécurité** : Valider les chemins de fichiers (éviter path traversal)
 
+---
+
+## ⚡ Quick Start (5 minutes)
+
+1. **Installer depuis PyPI**  
+   ```bash
+   pip install talend-doc-gen
+   ```
+2. **Générer immédiatement un Markdown**  
+   ```bash
+   talend-doc-gen generate /chemin/job.item --detail standard --diagram mermaid
+   ```
+3. **Visualiser via Streamlit**  
+   ```bash
+   talend-doc-gen-ui
+   # Ouvrir http://localhost:8501 et fournir le chemin du .item
+   ```
+4. **Exporter en PDF (optionnel)**  
+   ```bash
+   talend-doc-gen generate /chemin/job.item --pdf
+   ```
+5. **Consulter la documentation API**  
+   ```bash
+   sphinx-build -b html docs/api docs/api/_build/html
+   open docs/api/_build/html/index.html
+   ```
+
+## 🧭 Guide utilisateur complet (≈30 minutes)
+
+1. **Préparer l'environnement**
+   - Installer Graphviz (`apt-get install graphviz`) pour les exports DOT.
+   - Vérifier `ollama serve` si vous souhaitez les descriptions LLM.
+   - Copier vos jobs `.item`, `.properties`, `.screenshot` dans un dossier accessible.
+2. **Générer un premier job**
+   - `talend-doc-gen generate data/job.item --detail exhaustif --diagram both --output docs/output/job.md`
+   - Ouvrir `docs/output/job.md` pour vérifier le rendu.
+3. **Personnaliser les templates**
+   - Les templates Markdown sont dans `templates/` (embarqué dans le package). Dupliquez `job_standard.md`, ajoutez vos sections, puis passez `--template mon_template.md`.
+4. **Analyse en batch**
+   - `talend-doc-gen batch data/jobs/ --incremental` pour ne regénérer que les jobs modifiés.
+   - Suivre la progression dans la console Rich.
+5. **Statistiques détaillées**
+   - `talend-doc-gen stats data/job.item --format yaml` pour intégrer des métriques dans vos pipelines CI/CD.
+6. **Interface Streamlit**
+   - Lancer `talend-doc-gen-ui`, uploader/indiquer le chemin du `.item`, télécharger Markdown et PDF directement depuis l'UI.
+7. **Intégration CI**
+   - Ajouter un job GitHub Actions : `pip install talend-doc-gen && talend-doc-gen batch data/jobs --incremental`.
+8. **Publication**
+   - Publier le Markdown/PDF dans Confluence, SharePoint ou GitHub Pages (voir section Sphinx ci-dessous).
+
+## 🛠️ Guide développeur (≈1 heure)
+
+1. **Installer en mode développement**
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   pip install -e .
+   ```
+2. **Comprendre l'architecture**
+   - `parser/`: lecture des `.item`, `.properties`, contextes.
+   - `analyzer/`: normalisation, stats, génération des flux.
+   - `generator/`: Markdown, PDF, diagrammes.
+   - `llm/`: prompts et client Ollama.
+   - `utils/`: cache, logs, recherche des fichiers et ressources embarquées.
+3. **Ajouter un nouveau parser ou plugin**
+   - Créer un module dans `parser/` ou `generator/plugins/`.
+   - Ajouter des tests dans `tests/` avec des fixtures `.item` dédiées.
+   - Exposer les nouveaux types dans `MarkdownGenerator`.
+4. **Travailler sur les templates**
+   - Les templates sont chargés via `utils.resource_finder.find_assets_root()`. Vérifiez que vos nouveaux fichiers sont inclus dans `talend_doc_gen_assets`.
+5. **Packaging & distribution**
+   - Le package PyPI est défini dans `setup.py` (`talend-doc-gen`).
+   - Inclut `config.yaml` + `templates/*.md` pour une installation autonome.
+   - Tester l'installation locale : `pip install .` puis `talend-doc-gen --help`.
+6. **Tests et qualité**
+   - `python -m compileall src`
+   - `pytest --maxfail=1`
+   - `sphinx-build -b html docs/api docs/api/_build/html` pour vérifier la doc.
+7. **Profilage**
+   - Ajouter `--profile` sur `generate` ou `batch` pour produire un rapport SnakeViz.
+8. **Release**
+   - Mettre à jour `CHANGELOG.md`, tagger la version, publier sur PyPI, puis déployer la doc HTML sur GitHub Pages.
+
+## 📖 Documentation API (Sphinx + GitHub Pages)
+
+1. **Installation locale**
+   ```bash
+   pip install sphinx sphinx-rtd-theme
+   ```
+2. **Génération HTML**
+   ```bash
+   sphinx-build -b html docs/api docs/api/_build/html
+   ```
+3. **Aperçu**
+   - Ouvrir `docs/api/_build/html/index.html`.
+4. **Publication sur GitHub Pages**
+   - Copier le contenu de `docs/api/_build/html` dans le dossier `docs/` de la branche principale **ou** pousser sur la branche `gh-pages`.
+   - Dans GitHub > Settings > Pages, choisir la source `gh-pages` (ou `/docs`).
+   - Les assets (CSS/JS) sont inclus, aucun backend n'est requis.
+5. **Regénération automatique**
+   - Ajouter un workflow CI :
+     ```yaml
+     - name: Build Sphinx
+       run: sphinx-build -b html docs/api docs/api/_build/html
+     - name: Deploy to gh-pages
+       uses: peaceiris/actions-gh-pages@v3
+       with:
+         publish_dir: docs/api/_build/html
+     ```
+
+## ❓ FAQ (10+ questions)
+
+1. **Quelle est la commande la plus simple pour générer un job ?**  
+   `talend-doc-gen generate mon_job.item --detail standard`
+2. **Puis-je désactiver le LLM ?**  
+   Oui, ajoutez `--no-llm` (CLI) ou décochez dans l'UI Streamlit.
+3. **Graphviz est-il obligatoire ?**  
+   Non pour Mermaid, oui pour les rendus Graphviz (`--diagram graphviz` ou `both`).
+4. **Où sont stockés les outputs ?**  
+   Par défaut dans `docs/output/`, modifiable via `config.yaml`.
+5. **Comment changer le template Markdown ?**  
+   Dupliquez un template dans `templates/` et passez `--template <nom>.md`.
+6. **Comment purger le cache ?**  
+   Utilisez `--no-cache` ou supprimez le dossier indiqué par `utils.cache_manager.get_cache_manager().cache_dir`.
+7. **Puis-je lancer plusieurs jobs en parallèle ?**  
+   Oui, l'option `--workers` sur `batch` contrôle le parallélisme (ProcessPool + ThreadPool).
+8. **Comment obtenir des stats YAML ?**  
+   `talend-doc-gen stats job.item --format yaml`.
+9. **L'UI Streamlit supporte-t-elle les PDF ?**  
+   Oui, activez la case "Exporter en PDF" dans la barre latérale.
+10. **Comment forcer un layout vertical Mermaid ?**  
+    Changez `diagrams.style` dans `config.yaml` (ex: `LR`, `TB`, `TD`).
+11. **Le projet supporte-t-il Talend Cloud ?**  
+    La roadmap 2.0.0 prévoit le support natif ; en attendant, utilisez les exports `.item`.
+
+## 🩺 Troubleshooting
+
+- **Erreur `OSError: Graphviz executables not found`**  
+  Installer Graphviz (`apt-get install graphviz`) puis relancer `talend-doc-gen`.
+- **Connexion Ollama impossible**  
+  Vérifier que `ollama serve` tourne sur `http://localhost:11434` ou mettre à jour `config.yaml`.
+- **Streamlit ne démarre pas (port occupé)**  
+  Lancer `talend-doc-gen-ui --server.port 8502`.
+- **PDF vide ou tronqué**  
+  Vérifier la présence du screenshot `.screenshot` et la police configurée dans `config.yaml`.
+- **Templates introuvables après installation pip**  
+  Confirmer que `talend_doc_gen_assets` est installé (`python -c "import talend_doc_gen_assets; print(talend_doc_gen_assets.__file__)"`).
+- **Crash sur fichiers volumineux**  
+  Activer `--no-cache` pour forcer un parsing propre et augmenter `--workers` prudemment.
+- **Timeout LLM**  
+  Augmenter `ollama.timeout` dans `config.yaml` ou désactiver le LLM avec `--no-llm`.
+- **EncodingError sur Windows**  
+  Exporter `PYTHONIOENCODING=utf-8` avant de lancer la CLI.

@@ -10,3 +10,5 @@ pytest
 pytest-cov
 rich
 snakeviz
+sphinx
+sphinx-rtd-theme
