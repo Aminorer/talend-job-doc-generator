@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<talendfile:ContextType xmlns:talendfile="http://www.talend.org/cm/model/talendfile" defaultContext="Default">
+  <context name="Default">
+    <contextParameter name="env" type="id_String" value="DEV"/>
+    <contextParameter name="timeout" type="id_Integer">
+      <value>30</value>
+    </contextParameter>
+  </context>
+  <context name="Prod">
+    <contextParameter name="env" type="id_String" value="PROD"/>
+  </context>
+</talendfile:ContextType>
