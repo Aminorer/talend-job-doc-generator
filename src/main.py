@@ -188,7 +188,11 @@ def _parse_job(
         if internal_progress:
             internal_progress.advance(task_id)
 
+        project_root = files.get("project_root") or files.get("item").parent  # type: ignore[union-attr]
+
         item_data["screenshot_path"] = str(files["screenshot"]) if files.get("screenshot") else None
+        item_data["project_root"] = str(project_root) if project_root else None
+        item_data["item_path"] = str(files.get("item")) if files.get("item") else None
 
         analyzer = JobAnalyzer(
             item_data,

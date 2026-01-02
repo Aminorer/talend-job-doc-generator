@@ -2,12 +2,17 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
+from parser.routine_parser import RoutineParser
 
 LOGGER = logging.getLogger(__name__)
-ROUTINE_PATTERN = re.compile(r"(Talend\w+|[A-Z][A-Za-z0-9_]*Routine)\.", re.IGNORECASE)
+ROUTINE_PATTERN = re.compile(
+    r"(?P<class>(Talend\w+|[A-Z][A-Za-z0-9_]*Routine))\.(?P<method>[A-Za-z_][A-Za-z0-9_]*)",
+    re.IGNORECASE,
+)
 
 
 class DependencyFinder:
@@ -23,8 +28,11 @@ class DependencyFinder:
             extra={"job_name": self.item_data.get("name"), "nb_components": len(self.item_data.get("components", []))},
         )
         components = self.item_data.get("components", [])
+        project_root = self.item_data.get("project_root")
+        routine_usages = self._find_routines(components)
+        routine_definitions = self._parse_routine_files(project_root) if routine_usages else {}
         dependencies: Dict[str, Any] = {
-            "routines": self._find_routines(components),
+            "routines": self._enrich_routines(routine_usages, routine_definitions, project_root),
             "joblets": self._find_joblets(components),
             "subjobs": self._find_subjobs(),
             "db_connections": self._find_db_connections(components),
@@ -41,23 +49,86 @@ class DependencyFinder:
         )
         return dependencies
 
-    def _find_routines(self, components: List[Dict[str, Any]]) -> List[str]:
-        routines: List[str] = []
+    def _find_routines(self, components: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        routines: Dict[str, Set[str]] = {}
         for comp in components:
             params = comp.get("parameters", {})
             for value in params.values():
-                if isinstance(value, str) and ROUTINE_PATTERN.search(value):
-                    routine_name = ROUTINE_PATTERN.search(value)
-                    if routine_name:
-                        routines.append(routine_name.group(1))
-                if isinstance(value, list):
-                    for entry in value:
-                        if not isinstance(entry, dict):
-                            continue
-                        for sub_value in entry.values():
-                            if isinstance(sub_value, str) and ROUTINE_PATTERN.search(sub_value):
-                                routines.append(ROUTINE_PATTERN.search(sub_value).group(1))  # type: ignore[arg-type]
-        return sorted(set(routines))
+                self._scan_value_for_routines(value, routines)
+        return [
+            {"name": name, "methods": sorted(methods)}
+            for name, methods in sorted(routines.items(), key=lambda item: item[0].lower())
+        ]
+
+    def _scan_value_for_routines(self, value: Any, routines: Dict[str, Set[str]]) -> None:
+        if isinstance(value, str):
+            for match in ROUTINE_PATTERN.finditer(value):
+                routine_name = match.group("class")
+                method_name = match.group("method")
+                routines.setdefault(routine_name, set()).add(method_name)
+        elif isinstance(value, list):
+            for entry in value:
+                if isinstance(entry, dict):
+                    for sub_value in entry.values():
+                        self._scan_value_for_routines(sub_value, routines)
+
+    def _parse_routine_files(self, project_root: Optional[str]) -> Dict[str, Dict[str, Any]]:
+        if not project_root:
+            return {}
+        routines_dir = Path(project_root) / "code" / "routines"
+        if not routines_dir.exists():
+            LOGGER.info("Dossier routines introuvable", extra={"project_root": project_root})
+            return {}
+
+        parsed: Dict[str, Dict[str, Any]] = {}
+        for java_file in routines_dir.rglob("*.java"):
+            try:
+                info = RoutineParser(str(java_file)).extract_class_info()
+                info["path"] = str(java_file)
+                parsed[info["name"]] = info
+            except Exception:  # pylint: disable=broad-except
+                LOGGER.warning("Impossible de parser la routine", extra={"path": str(java_file)}, exc_info=True)
+        return parsed
+
+    def _enrich_routines(
+        self,
+        routine_usages: List[Dict[str, Any]],
+        routine_definitions: Dict[str, Dict[str, Any]],
+        project_root: Optional[str],
+    ) -> List[Dict[str, Any]]:
+        enriched: List[Dict[str, Any]] = []
+        for routine in routine_usages:
+            details = routine_definitions.get(routine["name"])
+            methods: List[Dict[str, str]] = []
+            for method in routine.get("methods", []):
+                method_info = next((m for m in details.get("methods", []) if m.get("name") == method), None) if details else None
+                methods.append(
+                    {
+                        "name": method,
+                        "signature": method_info.get("signature") if method_info else method,
+                        "javadoc": method_info.get("javadoc", "") if method_info else "",
+                    }
+                )
+            enriched.append(
+                {
+                    "name": routine["name"],
+                    "package": details.get("package") if details else None,
+                    "path": self._relative_path(details.get("path"), project_root) if details else None,
+                    "methods": methods,
+                }
+            )
+        return enriched
+
+    def _relative_path(self, path: Optional[str], project_root: Optional[str]) -> Optional[str]:
+        if not path:
+            return None
+        path_obj = Path(path)
+        if project_root:
+            try:
+                return str(path_obj.resolve().relative_to(Path(project_root).resolve()))
+            except ValueError:
+                return str(path_obj)
+        return str(path_obj)
 
     def _find_joblets(self, components: List[Dict[str, Any]]) -> List[Dict[str, str]]:
         joblets: List[Dict[str, str]] = []

@@ -16,7 +16,7 @@ class AnalyzedJob:
     raw_item: Dict[str, Any]
     properties: Optional[Dict[str, str]]
     contexts: Optional[Dict[str, Dict[str, str]]]
-    dependencies: Dict[str, List[str]]
+    dependencies: Dict[str, Any]
     flows: Dict[str, Any]
     screenshot_path: Optional[str] = None
 

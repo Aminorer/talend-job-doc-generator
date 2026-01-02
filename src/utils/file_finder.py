@@ -30,11 +30,14 @@ class FileFinder:
             if context_dir.exists():
                 context_file = self._find_context_in_directory(context_dir, item_path.stem)
 
+        project_root = self._infer_project_root(item_path)
+
         related = {
             "item": item_path,
             "properties": item_path.with_suffix(".properties"),
             "screenshot": item_path.with_suffix(".screenshot"),
             "context": context_file if context_file and context_file.exists() else None,
+            "project_root": project_root,
         }
         for key, path in related.items():
             if not path or not path.exists():
@@ -47,6 +50,16 @@ class FileFinder:
                 except Exception:
                     related[key] = None
         return related
+
+    def _infer_project_root(self, item_path: Path) -> Path:
+        """Tente de retrouver la racine du projet Talend à partir du .item."""
+        current = item_path.parent
+        markers = ("process", "context", "code")
+        while current.parent != current:
+            if any((current / marker).exists() for marker in markers):
+                return current
+            current = current.parent
+        return item_path.parent
 
     def _find_context_in_directory(self, context_dir: Path, stem: str) -> Optional[Path]:
         """Sélectionne le fichier .context le plus pertinent dans un dossier context/."""

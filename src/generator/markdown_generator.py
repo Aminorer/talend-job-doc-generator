@@ -38,6 +38,7 @@ class MarkdownGenerator:
         dependencies_section = self._format_dependencies(job.dependencies)
         db_connections = self._format_db_connections(job.dependencies.get("db_connections", []))
         screenshot_section = self._format_screenshot(job.screenshot_path)
+        routines_section = self._format_routines(job.dependencies.get("routines", []))
         toc = self._build_toc(
             [
                 "Description générée",
@@ -45,6 +46,7 @@ class MarkdownGenerator:
                 "Screenshot",
                 "Contextes",
                 "Variables de contexte",
+                "Routines utilisées",
                 "Composants",
                 "Connexions",
                 "Détails des composants",
@@ -78,6 +80,7 @@ class MarkdownGenerator:
             notes_section=notes_section,
             stats_section=stats_section,
             tmap_section=tmap_section,
+            routines_section=routines_section,
             dependencies_section=dependencies_section,
             db_connections=db_connections,
             toc=toc,
@@ -220,12 +223,38 @@ class MarkdownGenerator:
         joblets = dependencies.get("joblets") or []
         connectors = dependencies.get("connectors") or []
         if routines:
-            lines.append("**Routines détectées :** " + ", ".join(sorted(set(routines))))
+            routine_names = [
+                r.get("name") if isinstance(r, dict) else str(r)
+                for r in routines
+            ]
+            lines.append("**Routines détectées :** " + ", ".join(sorted(set(filter(None, routine_names)))))
         if joblets:
             lines.append("**Joblets :** " + ", ".join(j.get("unique_name") or j.get("name") for j in joblets))
         if connectors:
             lines.append("**Connecteurs :** " + ", ".join(sorted(set(connectors))))
         return "\n".join(lines) or "Aucune dépendance détectée"
+
+    def _format_routines(self, routines: List[Dict[str, Any]]) -> str:
+        if not routines:
+            return "Aucune routine détectée"
+        lines: List[str] = []
+        for routine in routines:
+            title = routine.get("name", "Routine")
+            if routine.get("package"):
+                title = f"{title} ({routine['package']})"
+            lines.append(f"### {title}")
+            if routine.get("path"):
+                lines.append(f"- Fichier : [{routine['path']}]({routine['path']})")
+            if not routine.get("methods"):
+                lines.append("- Aucune méthode détectée")
+            else:
+                lines.append("- Méthodes :")
+                for method in routine["methods"]:
+                    signature = method.get("signature") or method.get("name")
+                    desc = method.get("javadoc") or "Pas de description"
+                    lines.append(f"  - `{signature}` : {desc}")
+            lines.append("")
+        return "\n".join(lines).strip()
 
     def _format_db_connections(self, db_connections: List[Dict[str, Any]]) -> str:
         if not db_connections:
