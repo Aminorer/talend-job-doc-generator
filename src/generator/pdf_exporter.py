@@ -63,6 +63,10 @@ class PDFExporter:
             screenshot_path: chemin vers un PNG à embarquer.
             stats: statistiques calculées à mettre en avant sur la couverture.
         """
+        LOGGER.info(
+            "Export PDF démarré",
+            extra={"job_name": metadata.get("name") if metadata else None, "output_dir": str(self.output_dir)},
+        )
         html_content = markdown2.markdown(markdown_content)
         html = self._wrap_html(html_content, metadata=metadata or {}, screenshot_path=screenshot_path, stats=stats or {})
         output_path = self.output_dir / f"{Path(filename).stem}.pdf"
@@ -70,6 +74,7 @@ class PDFExporter:
             try:
                 css = CSS(string=template_css) if CSS else None
                 HTML(string=html).write_pdf(str(output_path), stylesheets=[css] if css else None)
+                LOGGER.info("Export PDF terminé", extra={"job_name": metadata.get("name") if metadata else None, "path": str(output_path)})
                 return output_path
             except Exception as exc:  # pragma: no cover
                 LOGGER.error("WeasyPrint indisponible, fallback FPDF: %s", exc)
@@ -77,6 +82,7 @@ class PDFExporter:
         pdf.add_page()
         pdf.write_html(template_css + html)
         pdf.output(str(output_path))
+        LOGGER.info("Export PDF via FPDF", extra={"job_name": metadata.get("name") if metadata else None, "path": str(output_path)})
         return output_path
 
     def _wrap_html(self, body_html: str, metadata: Dict[str, Any], screenshot_path: Optional[str], stats: Dict[str, Any]) -> str:

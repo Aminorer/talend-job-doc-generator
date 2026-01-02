@@ -17,6 +17,7 @@ from parser.context_parser import ContextParser
 from parser.item_parser import TalendItemParser
 from parser.properties_parser import PropertiesParser
 from utils.file_finder import FileFinder
+from utils.logger import configure_logging, get_logger, log_execution
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -49,10 +50,15 @@ def generate_documentation(
     output: Optional[str] = None,
 ) -> Dict[str, Path]:
     config = load_config()
+    configure_logging(config.get("logging"))
+    logger = get_logger(__name__)
     finder = FileFinder(item_path)
-    files = finder.find_related_files()
+    with log_execution(logger, "Recherche des fichiers", job_name=None, extra={"item_path": item_path}):
+        files = finder.find_related_files()
 
     item_data = TalendItemParser(str(files["item"])).parse()
+    job_name = item_data.get("name")
+    logger = get_logger(__name__, job_name=job_name)
 
     properties_data = None
     if files.get("properties"):
@@ -77,7 +83,8 @@ def generate_documentation(
         diagram_type=diagram_type,
         diagram_orientation=diagram_orientation,
     )
-    analyzed_job = analyzer.analyze()
+    with log_execution(logger, "Analyse du job", job_name=job_name):
+        analyzed_job = analyzer.analyze()
 
     # Générer la description via LLM
     llm_description = "Génération désactivée."
@@ -86,14 +93,17 @@ def generate_documentation(
         client = LlamaClient(llm_cfg.get("base_url", "http://localhost:11434"), llm_cfg.get("model", "llama3"), llm_cfg.get("timeout", 120))
         prompt = build_job_prompt(item_data, detail_level=detail)
         try:
-            llm_description = client.generate(prompt)
+            with log_execution(logger, "Appel LLM", job_name=job_name, extra={"model": llm_cfg.get("model")}):
+                llm_description = client.generate(prompt)
         except Exception as exc:  # pylint: disable=broad-except
+            logger.error("LLM indisponible: %s", exc, extra={"job_name": job_name})
             llm_description = f"Description non générée (LLM indisponible: {exc})."
 
     # Générer Markdown
     md_generator = MarkdownGenerator(str(TEMPLATES_DIR))
     template_name = template or _template_from_detail(detail)
-    markdown_content = md_generator.generate(analyzed_job, llm_description, template_name)
+    with log_execution(logger, "Génération Markdown", job_name=job_name, extra={"template": template_name}):
+        markdown_content = md_generator.generate(analyzed_job, llm_description, template_name)
 
     output_dir = Path(config.get("generator", {}).get("output_dir", "docs/output"))
     md_path = Path(output) if output else output_dir / f"{analyzer.job_name}.md"
@@ -109,7 +119,8 @@ def generate_documentation(
             "version": item_data.get("version"),
             "author": item_data.get("author"),
         }
-        pdf_path = pdf_exporter.export(markdown_content, md_path.name, metadata=metadata, stats=item_data.get("stats"))
+        with log_execution(logger, "Export PDF", job_name=job_name):
+            pdf_path = pdf_exporter.export(markdown_content, md_path.name, metadata=metadata, stats=item_data.get("stats"))
         result_paths["pdf"] = pdf_path
 
     # Sauvegarder les données JSON pour debugging

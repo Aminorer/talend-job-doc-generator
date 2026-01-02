@@ -48,6 +48,10 @@ class DiagramGenerator:
         Args:
             diagram_type: "mermaid", "graphviz" ou "both"
         """
+        LOGGER.info(
+            "Génération des diagrammes",
+            extra={"job_name": self.flow_data.get("job_name"), "diagram_type": diagram_type},
+        )
         result: Dict[str, str] = {}
         if diagram_type in ("mermaid", "both"):
             result["mermaid"] = self.generate_mermaid()

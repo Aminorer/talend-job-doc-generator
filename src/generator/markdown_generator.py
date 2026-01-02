@@ -1,10 +1,13 @@
 """Génération de la documentation Markdown."""
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
 from analyzer.job_analyzer import AnalyzedJob
+
+LOGGER = logging.getLogger(__name__)
 
 
 class MarkdownGenerator:
@@ -15,6 +18,10 @@ class MarkdownGenerator:
 
     def generate(self, job: AnalyzedJob, llm_description: str, template_name: str) -> str:
         """Génère le Markdown final en injectant toutes les sections enrichies."""
+        LOGGER.info(
+            "Génération Markdown",
+            extra={"job_name": job.raw_item.get("name"), "template": template_name},
+        )
         template_path = self.templates_dir / template_name
         if not template_path.exists():
             raise FileNotFoundError(f"Template introuvable: {template_path}")
@@ -50,7 +57,7 @@ class MarkdownGenerator:
         mermaid_diagram = job.flows.get("mermaid", "") or "Diagramme Mermaid indisponible"
         graphviz_diagram = job.flows.get("graphviz", "")
 
-        return template.format(
+        content = template.format(
             job_name=job.raw_item.get("name", "Job Talend"),
             overview=llm_description,
             llm_description=llm_description,
@@ -74,6 +81,15 @@ class MarkdownGenerator:
             mermaid_diagram=mermaid_diagram,
             graphviz_diagram=graphviz_diagram or "Diagramme Graphviz non généré",
         )
+        LOGGER.info(
+            "Markdown généré",
+            extra={
+                "job_name": job.raw_item.get("name"),
+                "components": len(job.raw_item.get("components", [])),
+                "connections": len(job.raw_item.get("connections", [])),
+            },
+        )
+        return content
 
     def _build_toc(self, titles: List[str]) -> str:
         return "\n".join(f"- [{title}](#{self._anchor(title)})" for title in titles)

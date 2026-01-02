@@ -7,7 +7,9 @@ from typing import Any, Dict, List, Optional
 
 from .dependency_finder import DependencyFinder
 from .flow_analyzer import FlowAnalyzer
+import logging
 
+LOGGER = logging.getLogger(__name__)
 
 @dataclass
 class AnalyzedJob:
@@ -42,6 +44,7 @@ class JobAnalyzer:
         self.graphviz_format = graphviz_format
 
     def analyze(self) -> AnalyzedJob:
+        LOGGER.info("Analyse du job", extra={"job_name": self.item_data.get("name")})
         dependency_finder = DependencyFinder(self.item_data)
         dependencies = dependency_finder.find_dependencies()
 
@@ -54,6 +57,13 @@ class JobAnalyzer:
         )
         flows = flow_analyzer.analyze_flows()
 
+        LOGGER.info(
+            "Analyse terminée",
+            extra={
+                "job_name": self.item_data.get("name"),
+                "nb_dependencies": sum(len(v) for v in dependencies.values() if isinstance(v, list)),
+            },
+        )
         return AnalyzedJob(
             raw_item=self.item_data,
             properties=self.properties_data,

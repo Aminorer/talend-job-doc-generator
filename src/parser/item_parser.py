@@ -50,6 +50,7 @@ class TalendItemParser:
             raise ValueError("Le fichier doit avoir l'extension .item")
 
     def parse(self) -> Dict[str, Any]:
+        LOGGER.info("Début parsing fichier .item", extra={"item_path": str(self.item_path)})
         self._load_xml()
         self._extract_namespaces()
 
@@ -69,12 +70,24 @@ class TalendItemParser:
             "notes": self._parse_notes(),
         }
         job_data["stats"] = self._calculate_stats(job_data)
+        LOGGER.info(
+            "Fin parsing fichier .item",
+            extra={"job_name": job_data.get("name"), "duration_ms": None, "item_path": str(self.item_path)},
+        )
         return job_data
 
     # --- XML helpers -----------------------------------------------------
     def _load_xml(self) -> None:
-        self.tree = etree.parse(str(self.item_path))
-        self.root = self.tree.getroot()
+        try:
+            self.tree = etree.parse(str(self.item_path))
+            self.root = self.tree.getroot()
+        except etree.XMLSyntaxError as exc:
+            LOGGER.error(
+                "Erreur XML pendant le parsing",
+                extra={"item_path": str(self.item_path)},
+                exc_info=True,
+            )
+            raise ValueError(f"Erreur XML dans {self.item_path}: {exc}") from exc
 
     def _extract_namespaces(self) -> None:
         assert self.root is not None
