@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+*.pyc
 
 # Virtual environments
 .venv/
@@ -27,3 +28,8 @@ ENV/
 
 # Logs
 *.log
+.pytest_cache/
+htmlcov/
+dist/
+build/
+*.egg-info/

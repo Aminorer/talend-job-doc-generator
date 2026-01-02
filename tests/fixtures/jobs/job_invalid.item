@@ -8,3 +8,4 @@
       <elementParameter field="TEXT" name="UNIQUE_NAME" value="tLogRow_invalid"/>
     </node>
     <!-- balise fermante manquante pour process -->
+  </process>

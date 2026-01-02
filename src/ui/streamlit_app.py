@@ -5,6 +5,7 @@ import json
 import time
 from pathlib import Path
 
+import requests
 import streamlit as st
 import yaml
 
@@ -105,7 +106,11 @@ def main():
                         llm_cfg.get("timeout", 120),
                     )
                     prompt = build_job_prompt(item_data, detail_level=detail_level)
-                    llm_description = client.generate(prompt)
+                    try:
+                        llm_description = client.generate(prompt)
+                    except requests.Timeout:
+                        st.warning("LLM timeout, description par défaut")
+                        llm_description = "Génération impossible (timeout)"
 
                 # Markdown
                 md_generator = MarkdownGenerator(str(TEMPLATES_DIR))
@@ -180,9 +185,9 @@ def main():
 
         if auto_refresh:
             time.sleep(refresh_ms / 1000)
-            st.experimental_rerun()
+            st.rerun()
         elif st.button("Rafraîchir maintenant"):
-            st.experimental_rerun()
+            st.rerun()
 
 
 def _level_order(level: str) -> int:
