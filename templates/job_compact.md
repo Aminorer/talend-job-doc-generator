@@ -24,6 +24,9 @@
 ## Routines utilisées
 {routines_section}
 
+## Joblets utilisés
+{joblets_section}
+
 ## Diagramme du flux
 ```mermaid
 {mermaid_diagram}

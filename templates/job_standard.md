@@ -36,6 +36,9 @@
 ## Routines utilisées
 {routines_section}
 
+## Joblets utilisés
+{joblets_section}
+
 ## Dépendances
 {dependencies_section}
 

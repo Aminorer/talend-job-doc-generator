@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<talendfile:ProcessType xmlns:xmi="http://www.omg.org/XMI" xmlns:talendfile="http://www.talend.org/cm/model/talendfile" name="job_with_joblet" version="1.0" jobType="Standard" defaultContext="Default" author="qa" creation="20240101" modification="20240202">
+  <process>
+    <context name="Default">
+      <contextParameter name="env" value="DEV" type="id_String" comment="environment"/>
+    </context>
+    <node componentName="tFixedFlowInput" componentVersion="0.1" posX="20" posY="20">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="tFixedFlowInput_1"/>
+      <metadata connector="FLOW" name="FLOW">
+        <column name="recipient" type="id_String" length="50" precision="0" nullable="false"/>
+        <column name="body" type="id_String" length="255" precision="0" nullable="true"/>
+      </metadata>
+    </node>
+    <node componentName="EmailSender" componentVersion="0.1" posX="220" posY="20">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="EmailSender_1"/>
+    </node>
+    <node componentName="tLogRow" componentVersion="0.1" posX="420" posY="20">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="tLogRow_1"/>
+    </node>
+    <connection connectorName="FLOW" label="incoming" lineStyle="0" source="tFixedFlowInput_1" target="EmailSender_1">
+      <elementParameter field="CHECK" name="MONITOR_CONNECTION" value="false"/>
+    </connection>
+    <connection connectorName="FLOW" label="sent" lineStyle="0" source="EmailSender_1" target="tLogRow_1">
+      <elementParameter field="CHECK" name="MONITOR_CONNECTION" value="false"/>
+    </connection>
+  </process>
+</talendfile:ProcessType>

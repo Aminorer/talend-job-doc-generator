@@ -27,3 +27,22 @@ def test_finder_picks_context_from_directory(tmp_path):
     assert related["screenshot"] is not None
     assert related["screenshot"].exists()
     assert related["screenshot"].parent == tmp_path / "screens"
+
+
+def test_find_joblets_from_project_root(tmp_path, fixtures_path):
+    project_root = tmp_path / "talend_project"
+    job_dir = project_root / "process"
+    joblets_dir = job_dir / "Joblets"
+    job_dir.mkdir(parents=True, exist_ok=True)
+    joblets_dir.mkdir(parents=True, exist_ok=True)
+
+    job_src = fixtures_path / "jobs" / "job_with_joblet.item"
+    job_dst = job_dir / job_src.name
+    job_dst.write_text(job_src.read_text(encoding="utf-8"), encoding="utf-8")
+
+    joblet_src = fixtures_path / "joblets" / "EmailSender.item"
+    joblet_dst = joblets_dir / joblet_src.name
+    joblet_dst.write_text(joblet_src.read_text(encoding="utf-8"), encoding="utf-8")
+
+    joblets = FileFinder(str(job_dst)).find_joblets()
+    assert joblets == [joblet_dst]
