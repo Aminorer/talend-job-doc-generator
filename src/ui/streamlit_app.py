@@ -20,7 +20,9 @@ from utils.file_finder import FileFinder
 from utils.logger import configure_logging, get_logger
 from utils.cache_manager import get_cache_manager
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+from utils.resource_finder import find_assets_root
+
+PROJECT_ROOT = find_assets_root()
 CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 TEMPLATES_DIR = PROJECT_ROOT / "templates"
 

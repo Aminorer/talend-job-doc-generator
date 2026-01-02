@@ -44,11 +44,12 @@ from utils.batch_state import BatchState
 from utils.cache_manager import CacheManager, get_cache_manager
 from utils.logger import configure_logging, get_logger
 from utils.profiler import run_with_profile
+from utils.resource_finder import find_assets_root
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config.yaml"
-TEMPLATES_DIR = PROJECT_ROOT / "templates"
+ASSETS_ROOT = find_assets_root()
+DEFAULT_CONFIG_PATH = ASSETS_ROOT / "config.yaml"
+TEMPLATES_DIR = ASSETS_ROOT / "templates"
 DEFAULT_WORKERS = max(4, os.cpu_count() or 4)
 
 
