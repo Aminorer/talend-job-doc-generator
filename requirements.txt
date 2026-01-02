@@ -6,3 +6,6 @@ fpdf2
 requests
 weasyprint
 graphviz
+pytest
+pytest-cov
+rich

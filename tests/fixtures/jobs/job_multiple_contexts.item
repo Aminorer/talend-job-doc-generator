@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<talendfile:ProcessType xmlns:xmi="http://www.omg.org/XMI" xmlns:talendfile="http://www.talend.org/cm/model/talendfile" name="job_multiple_contexts" version="1.1" jobType="Standard" defaultContext="Default" author="ops" creation="20231101" modification="20240115">
+  <process>
+    <context name="Default">
+      <contextParameter name="env" value="DEV" type="id_String" comment="environment"/>
+      <contextParameter name="api_url" value="https://api.dev" type="id_String" comment="dev endpoint"/>
+    </context>
+    <context name="Prod">
+      <contextParameter name="env" value="PROD" type="id_String" comment="environment"/>
+      <contextParameter name="api_url" value="https://api.prod" type="id_String" comment="prod endpoint"/>
+      <contextParameter name="secret" value="***" type="id_String" comment="masked"/>
+    </context>
+    <context name="QA">
+      <contextParameter name="env" value="QA" type="id_String" comment="environment"/>
+      <contextParameter name="api_url" value="https://api.qa" type="id_String" comment="qa endpoint"/>
+    </context>
+    <node componentName="tRESTRequest" componentVersion="0.1" posX="10" posY="30">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="tRESTRequest_1"/>
+      <elementParameter field="TEXT" name="URI" value="context.api_url"/>
+    </node>
+    <node componentName="tJavaRow" componentVersion="0.1" posX="220" posY="30">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="tJavaRow_1"/>
+      <elementParameter field="MEMO" name="CODE" value="System.out.println(context.env);"/>
+    </node>
+    <node componentName="tLogRow" componentVersion="0.1" posX="420" posY="30">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="tLogRow_ctx"/>
+    </node>
+    <connection connectorName="FLOW" label="main" source="tRESTRequest_1" target="tJavaRow_1" lineStyle="0"/>
+    <connection connectorName="FLOW" label="main" source="tJavaRow_1" target="tLogRow_ctx" lineStyle="0"/>
+  </process>
+</talendfile:ProcessType>

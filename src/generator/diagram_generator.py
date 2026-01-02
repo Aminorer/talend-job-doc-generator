@@ -7,8 +7,10 @@ from typing import Any, Dict, List, Optional
 
 try:
     from graphviz import Digraph
+    from graphviz.backend import ExecutableNotFound
 except Exception:  # pragma: no cover
     Digraph = None
+    ExecutableNotFound = OSError
 
 
 LOGGER = logging.getLogger(__name__)
@@ -111,8 +113,12 @@ class DiagramGenerator:
             graph.edge(source, target, label=label)
 
         output_path = self.output_dir / f"{job_name}_flow"
-        saved_path = graph.render(str(output_path), cleanup=True)
-        return saved_path
+        try:
+            saved_path = graph.render(str(output_path), cleanup=True)
+            return saved_path
+        except (ExecutableNotFound, OSError, RuntimeError) as exc:  # pragma: no cover - dépendance externe
+            LOGGER.warning("Graphviz indisponible, fallback DOT: %s", exc)
+            return self._fallback_dot()
 
     def _fallback_dot(self) -> str:
         lines: List[str] = ["digraph TalendJob {", '  rankdir="LR";']

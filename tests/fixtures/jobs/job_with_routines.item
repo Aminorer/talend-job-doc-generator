@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<talendfile:ProcessType xmlns:xmi="http://www.omg.org/XMI" xmlns:talendfile="http://www.talend.org/cm/model/talendfile" name="job_with_routines" version="0.9" jobType="Standard" defaultContext="Default" author="dev.team" creation="20231010" modification="20240101">
+  <process>
+    <context name="Default">
+      <contextParameter name="threshold" value="0.8" type="id_Float" comment="scoring threshold"/>
+    </context>
+    <node componentName="CustomJoblet" componentVersion="1.0" posX="10" posY="120">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="CustomJoblet_1"/>
+    </node>
+    <node componentName="tJavaFlex" componentVersion="0.1" posX="210" posY="120">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="tJavaFlex_1"/>
+      <elementParameter field="MEMO" name="CODE" value="TalendStringRoutine.formatDate(row1.date);"/>
+    </node>
+    <node componentName="tDBOutput" componentVersion="0.1" posX="420" posY="120">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="tDBOutput_1"/>
+      <elementParameter field="TEXT" name="HOST" value="db-server"/>
+      <elementParameter field="TEXT" name="PORT" value="1521"/>
+      <elementParameter field="TEXT" name="DBNAME" value="ODS"/>
+      <elementParameter field="TEXT" name="USER" value="writer"/>
+    </node>
+    <connection connectorName="FLOW" label="main" source="CustomJoblet_1" target="tJavaFlex_1" lineStyle="0"/>
+    <connection connectorName="FLOW" label="main" source="tJavaFlex_1" target="tDBOutput_1" lineStyle="0"/>
+    <note label="ROUTINE" posX="60" posY="20">Appelle des routines CustomRoutine.execute()</note>
+  </process>
+</talendfile:ProcessType>
