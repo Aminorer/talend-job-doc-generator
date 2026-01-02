@@ -21,6 +21,9 @@
 ## Connexions
 {connections_list}
 
+## Routines utilisées
+{routines_section}
+
 ## Diagramme du flux
 ```mermaid
 {mermaid_diagram}

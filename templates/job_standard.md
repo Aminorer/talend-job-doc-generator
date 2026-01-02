@@ -33,6 +33,9 @@
 ## tMap
 {tmap_section}
 
+## Routines utilisées
+{routines_section}
+
 ## Dépendances
 {dependencies_section}
 
