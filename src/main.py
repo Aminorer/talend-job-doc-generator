@@ -1,12 +1,14 @@
 """CLI avancé pour générer et analyser la documentation de jobs Talend."""
 from __future__ import annotations
 
+import io
 import json
 import logging
 import os
 import sys
 import textwrap
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -38,12 +40,16 @@ from parser.context_parser import ContextParser
 from parser.item_parser import TalendItemParser
 from parser.properties_parser import PropertiesParser
 from utils.file_finder import FileFinder
+from utils.batch_state import BatchState
+from utils.cache_manager import CacheManager, get_cache_manager
 from utils.logger import configure_logging, get_logger
+from utils.profiler import run_with_profile
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 TEMPLATES_DIR = PROJECT_ROOT / "templates"
+DEFAULT_WORKERS = max(4, os.cpu_count() or 4)
 
 
 class CliError(RuntimeError):
@@ -78,6 +84,15 @@ class ParsedJob:
     contexts: Optional[Dict[str, Dict[str, str]]]
     files: Dict[str, Path]
     analyzer: JobAnalyzer
+
+
+@dataclass
+class BatchRunResult:
+    results: Dict[Path, str]
+    failures: Dict[Path, str]
+    skipped: Dict[Path, str]
+    duration_s: float
+    profile_report: Optional[Path] = None
 
 
 def load_config(config_path: Optional[Path] = None) -> Dict[str, Any]:
@@ -289,10 +304,11 @@ def generate_documentation(
     use_llm: bool,
     output: Optional[str],
     no_cache: bool,
-    console: Console,
+    console: Optional[Console],
     config: Dict[str, Any],
     show_progress: bool = True,
 ) -> Dict[str, Path]:
+    console = console or Console()
     managing_progress = show_progress
     progress = _progress(console) if show_progress else None
     task_id: Optional[int] = None
@@ -454,7 +470,37 @@ def _stats_panel(title: str, stats: Dict[str, Any]) -> Panel:
     return Panel(_render_stats_table(stats), title=title, border_style="blue")
 
 
-def run_batch(folder: Path, ctx: CLIContext) -> None:
+def _batch_task(item: Path, config: Dict[str, Any]) -> Dict[str, str]:
+    task_console = Console(file=io.StringIO(), color_system=None, force_terminal=False)
+    outputs = generate_documentation(
+        item,
+        template=None,
+        export_pdf=False,
+        detail="standard",
+        diagram_type="mermaid",
+        use_llm=False,
+        output=None,
+        no_cache=False,
+        console=task_console,
+        config=config,
+        show_progress=False,
+    )
+    return {key: str(value) for key, value in outputs.items()}
+
+
+def run_batch(folder: Path, ctx: CLIContext, *, incremental: bool = False, profile: bool = False) -> BatchRunResult:
+    def _run() -> BatchRunResult:
+        return _execute_batch(folder, ctx, incremental=incremental)
+
+    if profile:
+        result, report = run_with_profile("batch", get_cache_manager().cache_dir, _run)
+        result.profile_report = report
+        ctx.console.print(Panel(f"Profil généré : {report}", border_style="cyan"))
+        return result
+    return _run()
+
+
+def _execute_batch(folder: Path, ctx: CLIContext, *, incremental: bool = False) -> BatchRunResult:
     _ensure_item_path(folder)
     items = _list_items(folder if folder.is_dir() else folder.parent)
     if not items:
@@ -466,34 +512,36 @@ def run_batch(folder: Path, ctx: CLIContext) -> None:
     task_id = progress.add_task("Batch", total=len(items))
     results: Dict[Path, str] = {}
     failures: Dict[Path, str] = {}
+    skipped: Dict[Path, str] = {}
+    cache_dir = get_cache_manager().cache_dir
+    batch_state = BatchState(cache_dir)
+    pending_items: List[Tuple[Path, str]] = []
 
+    for item in items:
+        md5 = CacheManager.compute_md5(item)
+        if incremental and batch_state.should_skip(item, md5):
+            existing_output = batch_state.get_outputs(item) or {}
+            skipped[item] = existing_output.get("markdown", "inchangé")
+            progress.advance(task_id)
+            continue
+        pending_items.append((item, md5))
+
+    start = time.perf_counter()
+    executor_cls = ProcessPoolExecutor if len(pending_items) > 10 else ThreadPoolExecutor
     with progress:
-        with ThreadPoolExecutor(max_workers=ctx.workers) as executor:
-            future_map = {
-                executor.submit(
-                    generate_documentation,
-                    item,
-                    template=None,
-                    export_pdf=False,
-                    detail="standard",
-                    diagram_type="mermaid",
-                    use_llm=False,
-                    output=None,
-                    no_cache=False,
-                    console=console,
-                    config=ctx.config,
-                    show_progress=False,
-                ): item
-                for item in items
-            }
+        with executor_cls(max_workers=ctx.workers) as executor:
+            future_map = {executor.submit(_batch_task, item, ctx.config): (item, md5) for item, md5 in pending_items}
             for future in as_completed(future_map):
-                item = future_map[future]
+                item, md5 = future_map[future]
                 try:
                     output = future.result()
-                    results[item] = str(output.get("markdown"))
+                    results[item] = output.get("markdown", "")
+                    batch_state.update(item, md5, output)
                 except Exception as exc:  # pylint: disable=broad-except
                     failures[item] = str(exc)
                 progress.advance(task_id)
+    duration = time.perf_counter() - start
+    batch_state.save()
 
     table = Table(box=box.SIMPLE, header_style="bold")
     table.add_column("Job")
@@ -501,10 +549,13 @@ def run_batch(folder: Path, ctx: CLIContext) -> None:
     table.add_column("Détail")
     for item, path in results.items():
         table.add_row(item.name, "✅", path)
+    for item, path in skipped.items():
+        table.add_row(item.name, "⏭️", path)
     for item, err in failures.items():
         table.add_row(item.name, "❌", err)
 
     console.print(Panel(table, title="Résultats batch", border_style="green" if not failures else "red"))
+    return BatchRunResult(results=results, failures=failures, skipped=skipped, duration_s=duration)
 
 
 def watch_folder(folder: Path, ctx: CLIContext) -> None:
@@ -574,7 +625,12 @@ def _stats_command(item_path: Path, ctx: CLIContext) -> None:
 @click.group(context_settings={"help_option_names": ["-h", "--help"]}, invoke_without_command=True)
 @click.option("--verbose", "verbose", is_flag=True, help="Activer les logs détaillés")
 @click.option("--quiet", "quiet", is_flag=True, help="Réduire la verbosité")
-@click.option("--workers", default=4, show_default=True, help="Nombre de workers pour le batch")
+@click.option(
+    "--workers",
+    default=DEFAULT_WORKERS,
+    show_default=True,
+    help="Nombre de workers pour le batch (défaut = nb CPU)",
+)
 @click.option("--format", "output_format", type=click.Choice(["json", "yaml"]), default="json", show_default=True, help="Format de sortie pour les stats")
 @click.pass_context
 def cli(ctx: click.Context, verbose: bool, quiet: bool, workers: int, output_format: str) -> None:
@@ -602,20 +658,28 @@ def cli(ctx: click.Context, verbose: bool, quiet: bool, workers: int, output_for
 @click.option("--pdf", is_flag=True, help="Exporter également en PDF")
 @click.option("--no-cache", is_flag=True, help="Désactiver le cache du parser .item")
 @click.pass_obj
-def generate(ctx: CLIContext, item_path: Path, template: Optional[str], detail: str, diagram: str, no_llm: bool, output: Optional[str], pdf: bool, no_cache: bool) -> None:
+@click.option("--profile", is_flag=True, help="Activer le profilage SnakeViz pour cette génération")
+def generate(ctx: CLIContext, item_path: Path, template: Optional[str], detail: str, diagram: str, no_llm: bool, output: Optional[str], pdf: bool, no_cache: bool, profile: bool) -> None:
     try:
-        outputs = generate_documentation(
-            item_path,
-            template=template,
-            export_pdf=pdf,
-            detail=detail,
-            diagram_type=diagram,
-            use_llm=not no_llm,
-            output=output,
-            no_cache=no_cache,
-            console=ctx.console,
-            config=ctx.config,
-        )
+        def _run_generate() -> Dict[str, Path]:
+            return generate_documentation(
+                item_path,
+                template=template,
+                export_pdf=pdf,
+                detail=detail,
+                diagram_type=diagram,
+                use_llm=not no_llm,
+                output=output,
+                no_cache=no_cache,
+                console=ctx.console,
+                config=ctx.config,
+            )
+
+        if profile:
+            outputs, report = run_with_profile("generate", get_cache_manager().cache_dir, _run_generate)
+            ctx.console.print(Panel(f"Profil généré : {report}", border_style="cyan"))
+        else:
+            outputs = _run_generate()
         _display_outputs(ctx.console, outputs)
     except CliError as error:
         _render_error(ctx.console, error)
@@ -642,9 +706,11 @@ def validate(ctx: CLIContext, item_path: Path) -> None:
 @cli.command(help="Générer la documentation pour tous les .item d'un dossier")
 @click.argument("folder", type=click.Path(exists=True, path_type=Path))
 @click.pass_obj
-def batch(ctx: CLIContext, folder: Path) -> None:
+@click.option("--incremental", is_flag=True, help="Ne retraiter que les jobs dont le hash a changé")
+@click.option("--profile", is_flag=True, help="Activer le profilage SnakeViz pour le batch")
+def batch(ctx: CLIContext, folder: Path, incremental: bool, profile: bool) -> None:
     try:
-        run_batch(folder, ctx)
+        run_batch(folder, ctx, incremental=incremental, profile=profile)
     except CliError as error:
         _render_error(ctx.console, error)
         sys.exit(error.exit_code)

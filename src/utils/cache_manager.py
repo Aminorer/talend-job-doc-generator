@@ -9,8 +9,10 @@ et un TTL configurable (24h par défaut).
 """
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
+import os
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, asdict
@@ -49,9 +51,11 @@ class CacheManager:
         ttl_seconds: int = DEFAULT_TTL_SECONDS,
         max_memory_entries: int = DEFAULT_MEMORY_SIZE,
     ) -> None:
-        self.cache_dir = Path(cache_dir) if cache_dir else Path(__file__).resolve().parents[2] / ".cache"
+        resolved_cache_dir = cache_dir or os.environ.get("TALEND_DOC_CACHE_DIR")
+        self.cache_dir = Path(resolved_cache_dir) if resolved_cache_dir else Path(__file__).resolve().parents[2] / ".cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.cache_file = self.cache_dir / "item_cache.json"
+        self.cache_file = self.cache_dir / "item_cache.json.gz"
+        self.legacy_cache_file = self.cache_dir / "item_cache.json"
         self.ttl_seconds = ttl_seconds
         self.max_memory_entries = max_memory_entries
 
@@ -106,19 +110,25 @@ class CacheManager:
             self._memory_cache.popitem(last=False)
 
     def _load_disk_cache(self) -> None:
-        if not self.cache_file.exists():
+        source_file = self.cache_file if self.cache_file.exists() else self.legacy_cache_file
+        if not source_file.exists():
             return
         try:
-            raw = json.loads(self.cache_file.read_text(encoding="utf-8"))
-            for key, payload in raw.items():
-                self._disk_cache[key] = CacheEntry.from_dict(payload)
-        except json.JSONDecodeError:
+            payload = self._read_cache_file(source_file)
+            for key, entry_payload in payload.items():
+                self._disk_cache[key] = CacheEntry.from_dict(entry_payload)
+            # Migration transparente de l'ancien cache non compressé
+            if source_file == self.legacy_cache_file:
+                self._persist_disk()
+                self.legacy_cache_file.unlink(missing_ok=True)
+        except (json.JSONDecodeError, OSError):
             # Cache corrompu, on repart sur un cache vide
             self._disk_cache = {}
 
     def _persist_disk(self) -> None:
         serializable = {key: entry.to_dict() for key, entry in self._disk_cache.items()}
-        self.cache_file.write_text(json.dumps(serializable, ensure_ascii=False, indent=2), encoding="utf-8")
+        with gzip.open(self.cache_file, "wt", encoding="utf-8") as handle:
+            json.dump(serializable, handle, ensure_ascii=False, indent=2)
 
     def _purge_expired(self) -> None:
         now = time.time()
@@ -148,6 +158,12 @@ class CacheManager:
             "entries": len(self._disk_cache),
             "size_bytes": cache_size,
         }
+
+    def _read_cache_file(self, path: Path) -> Dict[str, Any]:
+        if path.suffix == ".gz":
+            with gzip.open(path, "rt", encoding="utf-8") as handle:
+                return json.load(handle)
+        return json.loads(path.read_text(encoding="utf-8"))
 
 
 _DEFAULT_CACHE_MANAGER: Optional[CacheManager] = None

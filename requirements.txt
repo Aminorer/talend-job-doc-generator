@@ -9,3 +9,4 @@ graphviz
 pytest
 pytest-cov
 rich
+snakeviz
