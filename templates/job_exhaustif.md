@@ -14,6 +14,9 @@
 - Modifié le : {modified_at}
 - Contexte par défaut : {default_context}
 
+## Screenshot
+{screenshot_section}
+
 ## Contextes détaillés
 {contexts}
 

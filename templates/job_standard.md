@@ -12,6 +12,9 @@
 - Auteur : {author}
 - Contexte par défaut : {default_context}
 
+## Screenshot
+{screenshot_section}
+
 ## Contextes
 {contexts}
 

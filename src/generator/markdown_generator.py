@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from analyzer.job_analyzer import AnalyzedJob
 
@@ -37,10 +37,12 @@ class MarkdownGenerator:
         tmap_section = self._format_tmap(job.raw_item.get("components", []))
         dependencies_section = self._format_dependencies(job.dependencies)
         db_connections = self._format_db_connections(job.dependencies.get("db_connections", []))
+        screenshot_section = self._format_screenshot(job.screenshot_path)
         toc = self._build_toc(
             [
                 "Description générée",
                 "Métadonnées",
+                "Screenshot",
                 "Contextes",
                 "Variables de contexte",
                 "Composants",
@@ -67,6 +69,7 @@ class MarkdownGenerator:
             default_context=job.raw_item.get("default_context", ""),
             created_at=job.raw_item.get("created_at", ""),
             modified_at=job.raw_item.get("modified_at", ""),
+            screenshot_section=screenshot_section,
             contexts=contexts,
             contexts_table=contexts_table,
             components_table=components_table,
@@ -233,6 +236,14 @@ class MarkdownGenerator:
                 f"| {conn.get('component')} | {conn.get('type')} | {conn.get('host')} | {conn.get('port')} | {conn.get('database')} | {conn.get('schema')} | {conn.get('user')} |"
             )
         return "\n".join(rows)
+
+    def _format_screenshot(self, screenshot_path: Optional[str]) -> str:
+        if not screenshot_path:
+            return "Aucun screenshot disponible"
+        path = Path(screenshot_path)
+        if not path.exists():
+            return "Screenshot introuvable"
+        return f"![Screenshot]({path.as_posix()})"
 
 
 __all__ = ["MarkdownGenerator"]
