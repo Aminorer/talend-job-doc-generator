@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<talendfile:ProcessType xmlns:xmi="http://www.omg.org/XMI" xmlns:talendfile="http://www.talend.org/cm/model/talendfile" name="job_invalid" version="0.1" jobType="Standard" defaultContext="Default" author="broken">
+  <process>
+    <context name="Default">
+      <contextParameter name="env" value="DEV" type="id_String"/>
+    </context>
+    <node componentName="tLogRow" componentVersion="0.1" posX="10" posY="10">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="tLogRow_invalid"/>
+    </node>
+    <!-- balise fermante manquante pour process -->

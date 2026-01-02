@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<context:ContextType xmlns:context="http://www.talend.org/context" name="job_multiple_contexts">
+  <contextParameters>
+    <contextParameter name="env" value="DEV" type="id_String"/>
+    <contextParameter name="api_url" value="https://api.dev" type="id_String"/>
+  </contextParameters>
+  <context name="Prod">
+    <contextParameter name="env" value="PROD" type="id_String"/>
+    <contextParameter name="api_url" value="https://api.prod" type="id_String"/>
+  </context>
+</context:ContextType>

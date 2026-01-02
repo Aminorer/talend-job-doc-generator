@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<talendfile:ProcessType xmlns:xmi="http://www.omg.org/XMI" xmlns:talendfile="http://www.talend.org/cm/model/talendfile" name="job_tmap_complex" version="2.3" jobType="Standard" defaultContext="Default" author="data.eng" creation="20231212" modification="20240202">
+  <process>
+    <context name="Default">
+      <contextParameter name="source" value="S3" type="id_String" comment="source system"/>
+    </context>
+    <node componentName="tFileInputDelimited" componentVersion="0.101" posX="12" posY="164">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="tFileInputDelimited_1"/>
+      <elementParameter field="FILE" name="FILENAME" value="/data/source.csv"/>
+      <metadata connector="FLOW" name="FLOW">
+        <column name="id" type="id_Integer" length="10" precision="0" nullable="false"/>
+        <column name="country" type="id_String" length="50" precision="0" nullable="true"/>
+      </metadata>
+    </node>
+    <node componentName="tFixedFlowInput" componentVersion="0.1" posX="16" posY="264">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="tFixedFlowInput_1"/>
+      <elementParameter field="TABLE" name="VALUES">
+        <row value="id=1;country=FR"/>
+        <row value="id=2;country=US"/>
+      </elementParameter>
+      <metadata connector="FLOW" name="FLOW">
+        <column name="lk_id" type="id_Integer" length="10" precision="0" nullable="false"/>
+        <column name="lk_country" type="id_String" length="50" precision="0" nullable="true"/>
+      </metadata>
+    </node>
+    <node componentName="tMap" componentVersion="2" posX="240" posY="190">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="tMap_complex"/>
+      <elementParameter field="MEMO_XML" name="MAP">
+        <baseTable>
+          <inputTables>
+            <table name="row1" lookupMode="LOAD_ONCE" joinType="Inner Join">
+              <ownedJoins>
+                <join name="j1" expression="row1.id == lookup1.lk_id" joinType="INNER"/>
+              </ownedJoins>
+              <mapperTableEntries>
+                <mapperTableEntry name="id" expression="row1.id"/>
+                <mapperTableEntry name="country" expression="row1.country"/>
+              </mapperTableEntries>
+            </table>
+            <table name="lookup1" lookupMode="RELOAD" joinModel="LEFT_OUTER_JOIN" innerJoin="false">
+              <mapperTableEntries>
+                <mapperTableEntry name="lk_id" expression="lookup1.lk_id"/>
+                <mapperTableEntry name="lk_country" expression="lookup1.lk_country"/>
+              </mapperTableEntries>
+            </table>
+          </inputTables>
+          <varTables>
+            <varTable name="Var">
+              <mapperTableEntries>
+                <mapperTableEntry name="COUNTRY_CODE" expression="StringHandling.UPCASE(lookup1.lk_country)" type="id_String" nullable="false"/>
+              </mapperTableEntries>
+            </varTable>
+          </varTables>
+          <outputTables>
+            <table name="out_joined" isReject="false" rejectInnerJoin="false">
+              <mapperTableEntry name="id_out" expression="row1.id" input="row1"/>
+              <mapperTableEntry name="country_out" expression="Var.COUNTRY_CODE"/>
+            </table>
+            <table name="out_reject" isReject="true" rejectInnerJoin="true">
+              <filterCondition expression="row1.country == 'XX'"/>
+              <mapperTableEntry name="id_out" expression="row1.id"/>
+              <mapperTableEntry name="country_out" expression="row1.country"/>
+            </table>
+          </outputTables>
+        </baseTable>
+      </elementParameter>
+    </node>
+    <node componentName="tOutput" componentVersion="1.0" posX="440" posY="190">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="tOutput_1"/>
+      <elementParameter field="TEXT" name="HOST" value="localhost"/>
+      <elementParameter field="TEXT" name="PORT" value="5432"/>
+      <elementParameter field="TEXT" name="DBNAME" value="analytics"/>
+      <elementParameter field="TEXT" name="USER" value="report"/>
+    </node>
+    <connection connectorName="FLOW" label="row1" lineStyle="0" source="tFileInputDelimited_1" target="tMap_complex">
+      <elementParameter field="CHECK" name="MONITOR_CONNECTION" value="false"/>
+    </connection>
+    <connection connectorName="FLOW" label="lookup" lineStyle="0" source="tFixedFlowInput_1" target="tMap_complex">
+      <elementParameter field="CHECK" name="MONITOR_CONNECTION" value="false"/>
+    </connection>
+    <connection connectorName="FLOW" label="main" lineStyle="0" source="tMap_complex" target="tOutput_1">
+      <elementParameter field="CHECK" name="MONITOR_CONNECTION" value="false"/>
+    </connection>
+    <subjob title="Load and join" start="tFileInputDelimited_1"/>
+  </process>
+</talendfile:ProcessType>
