@@ -4,10 +4,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Optional
 
+from parser.screenshot_parser import ScreenshotParser
+
 
 class FileFinder:
-    def __init__(self, base_path: str):
+    def __init__(self, base_path: str, screenshot_output_dir: Optional[str] = None):
         self.base_path = Path(base_path)
+        self.screenshot_output_dir = Path(screenshot_output_dir) if screenshot_output_dir else Path(
+            "docs/output/screenshots"
+        )
 
     def find_related_files(self) -> Dict[str, Optional[Path]]:
         item_path = Path(self.base_path)
@@ -34,6 +39,13 @@ class FileFinder:
         for key, path in related.items():
             if not path or not path.exists():
                 related[key] = None
+            elif key == "screenshot":
+                parser = ScreenshotParser(str(path), output_dir=str(self.screenshot_output_dir))
+                try:
+                    extracted = parser.parse()
+                    related[key] = extracted
+                except Exception:
+                    related[key] = None
         return related
 
     def _find_context_in_directory(self, context_dir: Path, stem: str) -> Optional[Path]:

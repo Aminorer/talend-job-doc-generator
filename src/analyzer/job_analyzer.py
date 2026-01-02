@@ -18,6 +18,7 @@ class AnalyzedJob:
     contexts: Optional[Dict[str, Dict[str, str]]]
     dependencies: Dict[str, List[str]]
     flows: Dict[str, Any]
+    screenshot_path: Optional[str] = None
 
 
 class JobAnalyzer:
@@ -70,6 +71,7 @@ class JobAnalyzer:
             contexts=self.context_data,
             dependencies=dependencies,
             flows=flows,
+            screenshot_path=self.screenshot_path,
         )
 
     @property

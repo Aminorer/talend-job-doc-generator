@@ -188,6 +188,8 @@ def _parse_job(
         if internal_progress:
             internal_progress.advance(task_id)
 
+        item_data["screenshot_path"] = str(files["screenshot"]) if files.get("screenshot") else None
+
         analyzer = JobAnalyzer(
             item_data,
             properties_data,
@@ -260,6 +262,7 @@ def _write_outputs(
             markdown_content,
             md_path.name,
             metadata=metadata,
+            screenshot_path=analyzer.screenshot_path,
             stats=item_data.get("stats"),
         )
         result_paths["pdf"] = pdf_path
