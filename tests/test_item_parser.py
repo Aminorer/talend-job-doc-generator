@@ -104,3 +104,12 @@ def test_cache_ttl_expiration(tmp_path, monkeypatch):
     parser.parse()
     metrics = cache_manager.get_metrics()
     assert metrics["misses"] >= 2
+
+
+def test_joblet_parameters_are_extracted(fixtures_path):
+    item_file = fixtures_path / "joblets" / "EmailSender.item"
+    parsed = TalendItemParser(str(item_file)).parse()
+
+    params = parsed.get("joblet_parameters", {})
+    assert params["inputs"] == ["IncomingEmail"]
+    assert params["outputs"] == ["OutgoingStatus"]

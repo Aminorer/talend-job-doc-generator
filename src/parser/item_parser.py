@@ -67,6 +67,8 @@ class TalendItemParser:
         self._load_xml()
         self._extract_namespaces()
 
+        components = [comp.__dict__ for comp in self._parse_components()]
+        connections = [conn.__dict__ for conn in self._parse_connections()]
         job_data: Dict[str, Any] = {
             "name": self._get_job_name(),
             "version": self._get_version(),
@@ -77,11 +79,12 @@ class TalendItemParser:
             "modified_at": self._get_attribute("modification"),
             "description": self._get_text_or_none("//documentation"),
             "contexts": self._parse_contexts(),
-            "components": [comp.__dict__ for comp in self._parse_components()],
-            "connections": [conn.__dict__ for conn in self._parse_connections()],
+            "components": components,
+            "connections": connections,
             "subjobs": self._parse_subjobs(),
             "notes": self._parse_notes(),
         }
+        job_data["joblet_parameters"] = self._parse_joblet_parameters(job_data["components"])
         job_data["stats"] = self._calculate_stats(job_data)
         duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
         if self.use_cache:
@@ -326,6 +329,30 @@ class TalendItemParser:
                 stats["connection_types"][ctype] = stats["connection_types"].get(ctype, 0) + 1
 
         return stats
+
+    def _parse_joblet_parameters(self, components: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+        inputs: List[str] = []
+        outputs: List[str] = []
+
+        for comp in components:
+            comp_name = (comp.get("name") or "").lower()
+            unique_name = comp.get("unique_name") or comp.get("name") or ""
+            label = comp.get("parameters", {}).get("LABEL")
+            parameter_name = label or unique_name
+            if self._is_joblet_input(comp_name):
+                inputs.append(parameter_name)
+            if self._is_joblet_output(comp_name):
+                outputs.append(parameter_name)
+
+        return {"inputs": inputs, "outputs": outputs}
+
+    def _is_joblet_input(self, comp_name: str) -> bool:
+        input_markers = ("tbufferinput", "tjobletinput", "jobletinput", "triggerinput")
+        return any(marker in comp_name for marker in input_markers)
+
+    def _is_joblet_output(self, comp_name: str) -> bool:
+        output_markers = ("tbufferoutput", "tjobletoutput", "jobletoutput", "triggeroutput")
+        return any(marker in comp_name for marker in output_markers)
 
 
 __all__ = ["TalendItemParser", "TalendComponent", "TalendConnection"]

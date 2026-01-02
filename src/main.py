@@ -204,6 +204,7 @@ def _parse_job(
         )
         logger.debug("Analyse du job %s", item_data.get("name"))
         analyzed_job = analyzer.analyze()
+        item_data["joblets"] = analyzed_job.joblets
         if internal_progress:
             internal_progress.advance(task_id)
     finally:

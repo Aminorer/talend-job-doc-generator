@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<talendfile:ProcessType xmlns:xmi="http://www.omg.org/XMI" xmlns:talendfile="http://www.talend.org/cm/model/talendfile" name="EmailSender" version="0.1" jobType="Joblet" defaultContext="Default" author="qa">
+  <process>
+    <context name="Default">
+      <contextParameter name="smtp_host" value="mail.local" type="id_String" comment="SMTP server"/>
+    </context>
+    <node componentName="tBufferInput" componentVersion="1.0" posX="32" posY="64">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="IncomingEmail"/>
+      <metadata connector="FLOW" name="FLOW">
+        <column name="recipient" type="id_String" length="50" precision="0" nullable="false"/>
+        <column name="body" type="id_String" length="255" precision="0" nullable="true"/>
+      </metadata>
+    </node>
+    <node componentName="tJavaRow" componentVersion="0.1" posX="220" posY="64">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="tJavaRow_1"/>
+      <elementParameter field="MEMO" name="CODE" value="System.out.println(row1.recipient);"/>
+    </node>
+    <node componentName="tBufferOutput" componentVersion="1.0" posX="420" posY="64">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="OutgoingStatus"/>
+      <metadata connector="FLOW" name="FLOW">
+        <column name="status" type="id_String" length="20" precision="0" nullable="false"/>
+      </metadata>
+    </node>
+    <connection connectorName="FLOW" label="row1" lineStyle="0" source="IncomingEmail" target="tJavaRow_1">
+      <elementParameter field="CHECK" name="MONITOR_CONNECTION" value="false"/>
+    </connection>
+    <connection connectorName="FLOW" label="processed" lineStyle="0" source="tJavaRow_1" target="OutgoingStatus">
+      <elementParameter field="CHECK" name="MONITOR_CONNECTION" value="false"/>
+    </connection>
+  </process>
+</talendfile:ProcessType>

@@ -39,6 +39,7 @@ class MarkdownGenerator:
         db_connections = self._format_db_connections(job.dependencies.get("db_connections", []))
         screenshot_section = self._format_screenshot(job.screenshot_path)
         routines_section = self._format_routines(job.dependencies.get("routines", []))
+        joblets_section = self._format_joblets(job.joblets)
         toc = self._build_toc(
             [
                 "Description générée",
@@ -46,11 +47,12 @@ class MarkdownGenerator:
                 "Screenshot",
                 "Contextes",
                 "Variables de contexte",
-                "Routines utilisées",
                 "Composants",
                 "Connexions",
                 "Détails des composants",
                 "tMap",
+                "Routines utilisées",
+                "Joblets utilisés",
                 "Dépendances",
                 "Connexions DB",
                 "Notes",
@@ -81,6 +83,7 @@ class MarkdownGenerator:
             stats_section=stats_section,
             tmap_section=tmap_section,
             routines_section=routines_section,
+            joblets_section=joblets_section,
             dependencies_section=dependencies_section,
             db_connections=db_connections,
             toc=toc,
@@ -273,6 +276,36 @@ class MarkdownGenerator:
         if not path.exists():
             return "Screenshot introuvable"
         return f"![Screenshot]({path.as_posix()})"
+
+    def _format_joblets(self, joblets: List[Dict[str, Any]]) -> str:
+        if not joblets:
+            return "Aucun joblet détecté"
+
+        lines: List[str] = []
+        for joblet in joblets:
+            title = joblet.get("unique_name") or joblet.get("name") or "Joblet"
+            version = joblet.get("version")
+            if version:
+                title = f"{title} (v{version})"
+            lines.append(f"### {title}")
+            if joblet.get("path"):
+                lines.append(f"- Fichier : `{joblet['path']}`")
+            params = joblet.get("joblet_parameters") or {}
+            inputs = params.get("inputs") or []
+            outputs = params.get("outputs") or []
+            lines.append(f"- Entrées : {', '.join(inputs) if inputs else 'Aucune'}")
+            lines.append(f"- Sorties : {', '.join(outputs) if outputs else 'Aucune'}")
+
+            mermaid = (joblet.get("flows") or {}).get("mermaid")
+            if mermaid:
+                lines.append("")
+                lines.append("```mermaid")
+                lines.append(mermaid)
+                lines.append("```")
+            else:
+                lines.append("- Diagramme indisponible")
+            lines.append("")
+        return "\n".join(lines).strip()
 
 
 __all__ = ["MarkdownGenerator"]
