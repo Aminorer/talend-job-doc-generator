@@ -19,16 +19,36 @@ class FileFinder:
         if not item_path.exists():
             raise FileNotFoundError("Fichier .item introuvable")
 
+        context_file = item_path.with_suffix(".context")
+        if not context_file.exists():
+            context_dir = item_path.parent / "context"
+            if context_dir.exists():
+                context_file = self._find_context_in_directory(context_dir, item_path.stem)
+
         related = {
             "item": item_path,
             "properties": item_path.with_suffix(".properties"),
             "screenshot": item_path.with_suffix(".screenshot"),
-            "context": item_path.with_suffix(".context"),
+            "context": context_file if context_file and context_file.exists() else None,
         }
         for key, path in related.items():
-            if not path.exists():
+            if not path or not path.exists():
                 related[key] = None
         return related
+
+    def _find_context_in_directory(self, context_dir: Path, stem: str) -> Optional[Path]:
+        """Sélectionne le fichier .context le plus pertinent dans un dossier context/."""
+        candidates = list(context_dir.glob("*.context"))
+        if not candidates:
+            return None
+
+        normalized_stem = stem.split("_")[0]
+        for candidate in candidates:
+            candidate_stem = candidate.stem.split("_")[0]
+            if candidate_stem == stem or candidate_stem == normalized_stem:
+                return candidate
+
+        return candidates[0]
 
 
 __all__ = ["FileFinder"]

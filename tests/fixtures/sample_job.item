@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<talendfile:ProcessType xmlns:xmi="http://www.omg.org/XMI" xmlns:talendfile="http://www.talend.org/cm/model/talendfile" name="sample_job" version="0.1" jobType="Standard" defaultContext="Default" author="john.doe" creation="20240101" modification="20240202">
+  <parameters>
+    <elementParameter field="TEXT" name="PROPERTY" value="sample_job"/>
+  </parameters>
+  <process>
+    <context name="Default">
+      <contextParameter name="env" value="DEV" type="id_String" comment="environment"/>
+    </context>
+    <node componentName="tMap" componentVersion="2" posX="32" posY="64">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="tMap_1"/>
+      <elementParameter field="MEMO_XML" name="MAP">
+        <baseTable>
+          <inputTables>
+            <table name="row1" lookupMode="LOAD_ONCE" joinType="Inner Join">
+              <ownedJoins>
+                <join name="j1" expression="row1.id == lookup1.id" joinType="INNER"/>
+              </ownedJoins>
+              <mapperTableEntries>
+                <mapperTableEntry name="id" expression="row1.id"/>
+                <mapperTableEntry name="name" expression="row1.name"/>
+              </mapperTableEntries>
+            </table>
+            <table name="lookup1" lookupMode="RELOAD" joinModel="LEFT_OUTER_JOIN" innerJoin="false">
+              <mapperTableEntries>
+                <mapperTableEntry name="lk_id" expression="lookup1.id"/>
+              </mapperTableEntries>
+            </table>
+          </inputTables>
+          <varTables>
+            <varTable name="Var">
+              <mapperTableEntries>
+                <mapperTableEntry name="UP_NAME" expression="StringHandling.UPCASE(row1.name)" type="id_String" nullable="false"/>
+              </mapperTableEntries>
+            </varTable>
+          </varTables>
+          <outputTables>
+            <table name="outMain" isReject="false" rejectInnerJoin="false">
+              <mapperTableEntry name="id_out" expression="row1.id" input="row1"/>
+              <mapperTableEntry name="name_out" expression="Var.UP_NAME"/>
+              <filterCondition expression="row1.active == true"/>
+            </table>
+            <table name="rejects" isReject="true" rejectInnerJoin="true">
+              <mapperTableEntry name="rej_id" expression="row1.id"/>
+            </table>
+          </outputTables>
+        </baseTable>
+      </elementParameter>
+      <metadata connector="FLOW">
+        <column name="id" type="id_Integer" length="10" precision="0" nullable="true"/>
+      </metadata>
+    </node>
+    <node componentName="tFileOutputDelimited" componentVersion="1" posX="200" posY="64">
+      <elementParameter field="TEXT" name="UNIQUE_NAME" value="tFileOutputDelimited_1"/>
+      <metadata connector="FLOW">
+        <column name="id_out" type="id_Integer" length="10" precision="0" nullable="true"/>
+      </metadata>
+    </node>
+    <connection connectorName="FLOW" lineStyle="2" label="main" source="tMap_1" target="tFileOutputDelimited_1"/>
+  </process>
+</talendfile:ProcessType>

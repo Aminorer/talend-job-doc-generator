@@ -85,6 +85,15 @@ class TalendItemParser:
 
     def _get_text_or_none(self, xpath: str) -> Optional[str]:
         assert self.root is not None
+        if xpath.startswith("//"):
+            results = self.root.xpath(xpath, namespaces=self.namespaces)
+            if results:
+                elem = results[0]
+                if isinstance(elem, etree._Element):
+                    return elem.text
+                if isinstance(elem, str):
+                    return elem
+            return None
         elem = self.root.find(xpath, namespaces=self.namespaces)
         return elem.text if elem is not None else None
 
@@ -244,20 +253,44 @@ class TalendItemParser:
         return param.get("value")
 
     def _parse_tmap_details(self, node: etree._Element) -> Dict[str, Any]:
+        """Analyse fine d'un tMap (tables, variables, joins et rejets)."""
         details: Dict[str, Any] = {
             "input_tables": [],
             "output_tables": [],
+            "variables": [],
             "mappings": [],
             "filters": [],
             "lookups": [],
             "rejects": [],
+            "joins": [],
         }
         try:
-            for table in node.findall('.//inputTables//table', namespaces=self.namespaces):
+            for table in node.findall(".//inputTables//table", namespaces=self.namespaces):
                 name = table.get("name")
-                if name:
-                    details["input_tables"].append(name)
+                join_model = table.get("joinModel") or table.get("joinType")
+                inner_join = table.get("innerJoin") == "true"
                 lookup_mode = table.get("lookupMode") or table.get("lookupType")
+                join_conditions = []
+                for join in table.findall(".//join", namespaces=self.namespaces):
+                    expression = join.get("expression") or (join.text or "").strip()
+                    if expression:
+                        join_conditions.append(expression)
+                        details["joins"].append(
+                            {
+                                "table": name,
+                                "type": join.get("joinType") or join_model,
+                                "expression": expression,
+                            }
+                        )
+
+                table_info = {
+                    "name": name,
+                    "lookup_mode": lookup_mode,
+                    "join_model": join_model,
+                    "inner_join": inner_join,
+                    "joins": join_conditions,
+                }
+                details["input_tables"].append(table_info)
                 if lookup_mode:
                     details["lookups"].append({"table": name, "mode": lookup_mode})
                 for entry in table.findall(".//mapperTableEntry", namespaces=self.namespaces):
@@ -269,11 +302,29 @@ class TalendItemParser:
                         }
                     )
 
-            for table in node.findall('.//outputTables//table', namespaces=self.namespaces):
+            for var_table in node.findall(".//varTables//varTable", namespaces=self.namespaces):
+                for entry in var_table.findall(".//mapperTableEntry", namespaces=self.namespaces):
+                    details["variables"].append(
+                        {
+                            "name": entry.get("name"),
+                            "expression": entry.get("expression"),
+                            "nullable": entry.get("nullable"),
+                            "type": entry.get("type"),
+                        }
+                    )
+
+            for table in node.findall(".//outputTables//table", namespaces=self.namespaces):
                 out_name = table.get("name")
-                if out_name:
-                    details["output_tables"].append(out_name)
-                if table.get("isReject") == "true":
+                reject_inner_join = table.get("rejectInnerJoin") == "true"
+                table_info = {
+                    "name": out_name,
+                    "is_reject": table.get("isReject") == "true",
+                    "reject_inner_join": reject_inner_join,
+                }
+                details["output_tables"].append(table_info)
+                if table_info["is_reject"]:
+                    details["rejects"].append(out_name)
+                if reject_inner_join and out_name not in details["rejects"]:
                     details["rejects"].append(out_name)
                 for entry in table.findall(".//mapperTableEntry", namespaces=self.namespaces):
                     details["mappings"].append(

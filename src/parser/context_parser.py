@@ -18,12 +18,31 @@ class ContextParser:
         root = tree.getroot()
         contexts: Dict[str, Dict[str, str]] = {}
         namespaces = root.nsmap or {}
+
         for context in root.findall(".//context", namespaces=namespaces):
             name = context.get("name", "Default")
             contexts[name] = {}
-            for param in context.findall("contextParameter", namespaces=namespaces):
-                contexts[name][param.get("name", "")] = param.get("value")
+            for param in context.findall(".//contextParameter", namespaces=namespaces):
+                contexts[name][param.get("name", "")] = self._extract_value(param)
+
+        # Certains fichiers .context ont une structure alternative (ContextType)
+        if not contexts:
+            for context in root.findall(".//{*}Context", namespaces=namespaces):
+                name = context.get("name", "Default")
+                contexts[name] = {}
+                for param in context.findall(".//{*}ContextParameter", namespaces=namespaces):
+                    contexts[name][param.get("name", "")] = self._extract_value(param)
+
         return contexts
+
+    def _extract_value(self, param: etree._Element) -> str:
+        value = param.get("value")
+        if value:
+            return value
+        child_value = param.find("value", namespaces=param.nsmap or {})
+        if child_value is not None and child_value.text:
+            return child_value.text
+        return param.text or ""
 
 
 __all__ = ["ContextParser"]
