@@ -48,6 +48,7 @@ def generate_documentation(
     diagram_type: str = "mermaid",
     use_llm: bool = True,
     output: Optional[str] = None,
+    no_cache: bool = False,
 ) -> Dict[str, Path]:
     config = load_config()
     configure_logging(config.get("logging"))
@@ -56,7 +57,7 @@ def generate_documentation(
     with log_execution(logger, "Recherche des fichiers", job_name=None, extra={"item_path": item_path}):
         files = finder.find_related_files()
 
-    item_data = TalendItemParser(str(files["item"])).parse()
+    item_data = TalendItemParser(str(files["item"]), use_cache=not no_cache).parse()
     job_name = item_data.get("name")
     logger = get_logger(__name__, job_name=job_name)
 
@@ -150,6 +151,7 @@ def main() -> None:
     parser.add_argument("--no-llm", action="store_true", help="Désactiver la génération via LLM")
     parser.add_argument("--output", "-o", default=None, help="Chemin de sortie du fichier Markdown")
     parser.add_argument("--pdf", action="store_true", help="Exporter également en PDF")
+    parser.add_argument("--no-cache", action="store_true", help="Désactiver le cache du parser .item")
     args = parser.parse_args()
 
     outputs = generate_documentation(
@@ -160,6 +162,7 @@ def main() -> None:
         diagram_type=args.diagram,
         use_llm=not args.no_llm,
         output=args.output,
+        no_cache=args.no_cache,
     )
     print("Documentation générée :")
     for kind, path in outputs.items():

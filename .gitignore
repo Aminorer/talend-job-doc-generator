@@ -22,5 +22,8 @@ ENV/
 # Streamlit cache
 .streamlit/
 
+# Parser cache
+.cache/
+
 # Logs
 *.log

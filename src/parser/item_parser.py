@@ -7,8 +7,10 @@ from typing import Any, Dict, List, Optional
 
 from lxml import etree
 import logging
+import time
 
 from parser.tmap_parser import TMapParser, TMapParsingError
+from utils.cache_manager import get_cache_manager, CacheManager
 
 LOGGER = logging.getLogger(__name__)
 
@@ -36,11 +38,13 @@ class TalendConnection:
 class TalendItemParser:
     """Parser pour fichiers .item de Talend."""
 
-    def __init__(self, item_path: str):
+    def __init__(self, item_path: str, cache_manager: Optional[CacheManager] = None, use_cache: bool = True):
         self.item_path = Path(item_path)
         self.tree: Optional[etree._ElementTree] = None
         self.root: Optional[etree._Element] = None
         self.namespaces: Dict[str, str] = {}
+        self.cache_manager = cache_manager or get_cache_manager()
+        self.use_cache = use_cache
         self._validate_inputs()
 
     def _validate_inputs(self) -> None:
@@ -50,7 +54,16 @@ class TalendItemParser:
             raise ValueError("Le fichier doit avoir l'extension .item")
 
     def parse(self) -> Dict[str, Any]:
-        LOGGER.info("Début parsing fichier .item", extra={"item_path": str(self.item_path)})
+        cache_key = self._compute_cache_key()
+        start_time = time.perf_counter()
+        if self.use_cache:
+            cached = self.cache_manager.get(cache_key)
+            if cached is not None:
+                duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                LOGGER.info("Cache hit", extra={"item_path": str(self.item_path), "duration_ms": duration_ms})
+                return cached
+
+        LOGGER.info("Cache miss - parsing fichier .item", extra={"item_path": str(self.item_path)})
         self._load_xml()
         self._extract_namespaces()
 
@@ -70,11 +83,18 @@ class TalendItemParser:
             "notes": self._parse_notes(),
         }
         job_data["stats"] = self._calculate_stats(job_data)
+        duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        if self.use_cache:
+            self.cache_manager.set(cache_key, job_data, duration_ms=duration_ms)
+
         LOGGER.info(
             "Fin parsing fichier .item",
-            extra={"job_name": job_data.get("name"), "duration_ms": None, "item_path": str(self.item_path)},
+            extra={"job_name": job_data.get("name"), "duration_ms": duration_ms, "item_path": str(self.item_path)},
         )
         return job_data
+
+    def _compute_cache_key(self) -> str:
+        return self.cache_manager.compute_md5(self.item_path)
 
     # --- XML helpers -----------------------------------------------------
     def _load_xml(self) -> None:

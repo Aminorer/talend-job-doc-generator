@@ -18,6 +18,7 @@ from parser.item_parser import TalendItemParser
 from parser.properties_parser import PropertiesParser
 from utils.file_finder import FileFinder
 from utils.logger import configure_logging, get_logger
+from utils.cache_manager import get_cache_manager
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = PROJECT_ROOT / "config.yaml"
@@ -49,6 +50,7 @@ def main():
         diagram_type = st.selectbox("Type de diagramme", options=["mermaid", "graphviz", "both"], index=0)
         export_pdf = st.checkbox("Exporter en PDF", value=False)
         use_llm = st.checkbox("Activer la génération LLM", value=True)
+        use_cache = st.checkbox("Activer le cache", value=True)
         item_path_input = st.text_input("Chemin vers le fichier .item", value="")
         launch = st.button("Générer la documentation")
     log_tab, doc_tab = st.tabs(["📊 Dashboard des logs", "📄 Génération"])
@@ -62,7 +64,7 @@ def main():
             try:
                 finder = FileFinder(item_path_input)
                 files = finder.find_related_files()
-                item_data = TalendItemParser(str(files["item"])).parse()
+                item_data = TalendItemParser(str(files["item"]), use_cache=use_cache).parse()
                 logger = get_logger(__name__, job_name=item_data.get("name"))
                 logger.info("Début génération Streamlit", extra={"job_name": item_data.get("name")})
 
@@ -161,6 +163,14 @@ def main():
         col1, col2 = st.columns(2)
         col1.metric("Erreurs", stats["ERROR"])
         col2.metric("Warnings", stats["WARNING"])
+        cache_metrics = get_cache_manager().get_metrics()
+        st.markdown("### Cache")
+        hit_col, miss_col, rate_col, time_col, size_col = st.columns(5)
+        hit_col.metric("Hits", cache_metrics["hits"])
+        miss_col.metric("Misses", cache_metrics["misses"])
+        rate_col.metric("Hit rate", f"{cache_metrics['hit_rate']}%")
+        time_col.metric("Temps économisé (ms)", cache_metrics["time_saved_ms"])
+        size_col.metric("Taille cache (octets)", cache_metrics["size_bytes"])
         if logs_display:
             st.json(logs_display[::-1])
         else:
